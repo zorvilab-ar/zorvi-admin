@@ -25,6 +25,9 @@ export const metadata: Metadata = {
   description: "Contabilidad y costos — Lámparas 3D",
 };
 
+/** Misma región que Supabase (sa-east-1). Sin esto las functions van a iad1 y cada click cruza el Atlántico. */
+export const preferredRegion = ["gru1"];
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
