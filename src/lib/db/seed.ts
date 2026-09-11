@@ -12,13 +12,39 @@ const {
 } = schema;
 
 async function main() {
-  const existing = await db.select().from(settings);
-  if (existing.length > 0) {
-    console.log("La base ya tiene datos. Seed omitido.");
+  const [settingRows, channelRows, supplyRows, productRows] = await Promise.all([
+    db.select({ id: settings.id }).from(settings),
+    db.select({ id: channels.id }).from(channels),
+    db.select({ id: supplies.id }).from(supplies),
+    db.select({ id: products.id }).from(products),
+  ]);
+
+  if (
+    settingRows.length > 0 &&
+    channelRows.length > 0 &&
+    supplyRows.length > 0 &&
+    productRows.length > 0
+  ) {
+    console.log(
+      `Seed omitido: la base ya tiene datos (settings ${settingRows.length}, canales ${channelRows.length}, insumos ${supplyRows.length}, productos ${productRows.length}).`,
+    );
+    console.log(
+      "Miralos en Supabase → Table Editor → schema public: settings, channels, partners, supplies, products.",
+    );
+    console.log(
+      "sales, purchases, quotes y filament_rolls empiezan vacías a propósito.",
+    );
     return;
   }
 
-  await db.insert(settings).values({
+  if (settingRows.length > 0) {
+    console.log(
+      "Hay settings pero falta catálogo. Completando el resto del seed…",
+    );
+  }
+
+  if (settingRows.length === 0) {
+    await db.insert(settings).values({
     id: 1,
     businessName: "Zorvi Lab",
     startDate: "2026-09-07",
@@ -37,7 +63,8 @@ async function main() {
     iibbRate: 0,
     otherTaxRate: 0,
     reinvestPercent: 100,
-  });
+    });
+  }
 
   await db.insert(channels).values([
     { name: "Directo", commission: 0, fixedCost: 0, notes: "Venta cara a cara, sin comisión." },
