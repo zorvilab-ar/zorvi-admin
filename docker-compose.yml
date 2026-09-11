@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: zorvi-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: zorvi
+      POSTGRES_PASSWORD: zorvi
+      POSTGRES_DB: zorvi
+    ports:
+      - "5433:5432"
+    volumes:
+      - zorvi_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zorvi -d zorvi"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  zorvi_pgdata:
