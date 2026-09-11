@@ -1,9 +1,12 @@
 # Zorvi Admin — comandos de un solo paso
 # `make up` levanta TODO: base de datos en Docker, schema, datos iniciales y la app.
 
-.PHONY: up down dev db-up db-wait db-push db-seed reset logs build start install studio
+.PHONY: up down dev db-up db-wait db-push db-seed reset logs build start install studio ensure-env
 
-up: install db-up db-wait db-push db-seed dev
+up: install ensure-env db-up db-wait db-push db-seed dev
+
+ensure-env:
+	@test -f .env.local || cp .env.example .env.local
 
 install:
 	pnpm install
@@ -22,7 +25,7 @@ db-push:
 db-seed:
 	pnpm tsx src/lib/db/seed.ts
 
-dev:
+dev: ensure-env
 	pnpm dev
 
 down:

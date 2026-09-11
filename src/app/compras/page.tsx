@@ -101,7 +101,7 @@ export default async function ComprasPage() {
         actions={addSheet}
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Kpi label="Total gastado" value={fmtArs(total)} />
         <Kpi label="Pagos pendientes" value={fmtArs(pendingTotal)} tone={pendingTotal > 0 ? "negative" : "neutral"} />
         <Kpi

@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { unstable_rethrow } from "next/navigation";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { Plus, Pencil } from "lucide-react";
 import type { VariantProps } from "class-variance-authority";
-import type { buttonVariants } from "@/components/ui/button";
+import { dbErrorToast } from "@/lib/db/errors";
 
 /**
  * Panel lateral genérico para crear o editar registros.
@@ -55,7 +56,8 @@ export function FormSheet({
         toast.success(successMessage);
         setOpen(false);
       } catch (e) {
-        toast.error("No se pudo guardar. Revisá los datos.");
+        unstable_rethrow(e);
+        toast.error(dbErrorToast(e));
         console.error(e);
       }
     });
@@ -81,8 +83,8 @@ export function FormSheet({
         side="right"
         className={
           wide
-            ? "w-full overflow-y-auto sm:max-w-2xl"
-            : "w-full overflow-y-auto sm:max-w-md"
+            ? "w-full max-w-none overflow-y-auto sm:max-w-2xl"
+            : "w-full max-w-none overflow-y-auto sm:max-w-md"
         }
       >
         <SheetHeader>

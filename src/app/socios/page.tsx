@@ -60,7 +60,7 @@ export default async function SociosPage() {
   );
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <PageHeader
         title="Socios"
         description="Los cuatro ponen lo mismo. Esta página dice quién está adelantado y a quién le falta poner para emparejar."

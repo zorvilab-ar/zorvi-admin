@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Trash2 } from "lucide-react";
+import { dbErrorToast, isDbConnectionError } from "@/lib/db/errors";
 
 /** Botón de borrar con confirmación en modal. */
 export function ConfirmDelete({
@@ -36,7 +37,11 @@ export function ConfirmDelete({
         toast.success("Eliminado");
         setOpen(false);
       } catch (e) {
-        toast.error("No se pudo eliminar (puede tener datos vinculados).");
+        toast.error(
+          isDbConnectionError(e)
+            ? dbErrorToast(e)
+            : "No se pudo eliminar (puede tener datos vinculados).",
+        );
         console.error(e);
       }
     });

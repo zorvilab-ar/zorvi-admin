@@ -25,15 +25,25 @@ make logs     # logs de Postgres
 make studio   # explorar la base con Drizzle Studio
 ```
 
-## Base de datos
+## Base de datos y auth
 
-- **Postgres 17** en Docker (`docker-compose.yml`), puerto **5433** local.
-- Los datos persisten en el volumen `zorvi_pgdata` — sobreviven a `make down`
-  y a reinicios; solo `make reset` (o `docker compose down -v`) los borra.
-- Conexión por defecto: `postgres://zorvi:zorvi@localhost:5433/zorvi`
-  (se puede pisar con la variable `DATABASE_URL`).
-- ORM: Drizzle. Schema en `src/lib/db/schema.ts`; fórmulas del Excel en
-  `src/lib/calc.ts`; server actions en `src/lib/actions.ts`.
+La app lee Postgres de `DATABASE_URL` (o `POSTGRES_URL` / `POSTGRES_PRISMA_URL`
+si Vercel + Supabase las inyecta).
+
+- **Local:** `.env.local` con Docker en el puerto **5433**. `make up` lo crea.
+- **Vercel:** Integrations → **Supabase**. No hace falta pegar URLs a mano:
+  el Marketplace carga `NEXT_PUBLIC_SUPABASE_*` y `POSTGRES_*`.
+- **Auth:** el panel exige login de Supabase Auth. En `ADMIN_EMAILS` van los
+  mails del equipo (coma-separados). Desactivá el registro público en Supabase
+  y creá los usuarios a mano.
+- **Realtime:** después del primer `pnpm db:push` contra Supabase, corré
+  `supabase/setup.sql` en el SQL Editor. El admin escucha inserts en `sales`
+  (compras de la tienda web).
+
+Si falta la base o Docker está apagado, muestra un aviso y no revienta.
+
+- Los datos locales persisten en `zorvi_pgdata`.
+- ORM: Drizzle. Schema en `src/lib/db/schema.ts`.
 
 ## Cómo se usa (el flujo)
 

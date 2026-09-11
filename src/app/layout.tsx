@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Lilita_One, Nunito, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppChrome } from "@/components/app-chrome";
 import { Toaster } from "@/components/ui/sonner";
 
 const display = Lilita_One({
@@ -25,6 +25,12 @@ export const metadata: Metadata = {
   description: "Contabilidad y costos — Lámparas 3D",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#FBEFD9",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -35,12 +41,7 @@ export default function RootLayout({
       <body
         className={`${sans.variable} ${display.variable} ${mono.variable} font-sans antialiased`}
       >
-        <div className="flex min-h-screen">
-          <AppSidebar />
-          <main className="flex-1 overflow-x-auto px-6 py-6 lg:px-10">
-            {children}
-          </main>
-        </div>
+        <AppChrome>{children}</AppChrome>
         <Toaster position="bottom-right" richColors />
       </body>
     </html>

@@ -74,7 +74,7 @@ export default async function ActivosPage() {
         actions={addSheet}
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Kpi label="Inversión total" value={fmtArs(totalInvest)} hint={fmtUsd(data.settings.fxRate > 0 ? totalInvest / data.settings.fxRate : 0)} />
         <Kpi label="Valor libro actual" value={fmtArs(bookValue)} hint="Lo que valen hoy, ya descontado el uso" />
         <Kpi

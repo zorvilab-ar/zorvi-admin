@@ -21,7 +21,7 @@ export default async function ParametrosPage() {
   const { settings: st, channels } = await loadAll();
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <PageHeader
         title="Parámetros"
         description="Todo el costeo cuelga de esta página. Se configura una sola vez; después solo se actualiza el dólar o alguna tarifa."

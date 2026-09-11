@@ -37,7 +37,7 @@ export default async function TableroPage() {
       />
 
       <SectionTitle>1 · Inversión y capital</SectionTitle>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Inversión en activos" value={fmtArs(d.assetInvestment)} hint={fmtUsd(d.assetInvestmentUsd)} />
         <Kpi label="Capital aportado" value={fmtArs(d.capital)} />
         <Kpi label="Retiros acumulados" value={fmtArs(d.withdrawals)} />
@@ -50,7 +50,7 @@ export default async function TableroPage() {
       </div>
 
       <SectionTitle>2 · Resultados acumulados</SectionTitle>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Unidades vendidas" value={fmtNum(d.unitsSold)} />
         <Kpi label="Ventas acumuladas" value={fmtArs(d.salesTotal)} hint={`Ticket promedio ${fmtArs(d.avgTicket)}`} />
         <Kpi
@@ -67,7 +67,7 @@ export default async function TableroPage() {
       </div>
 
       <SectionTitle>3 · Punto de equilibrio mensual</SectionTitle>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Costos fijos mensuales" value={fmtArs(d.fixedBudget)} hint="Presupuesto" />
         <Kpi
           label="Equilibrio en ventas"
@@ -88,7 +88,7 @@ export default async function TableroPage() {
       </div>
 
       <SectionTitle>4 · Productividad</SectionTitle>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Horas de impresión" value={fmtNum(d.hoursAccum)} hint={`Desvío vs. estimado: ${fmtNum(d.hoursDeviation)} h`} />
         <Kpi
           label="Producidas / falladas"
@@ -105,7 +105,7 @@ export default async function TableroPage() {
       </div>
 
       <SectionTitle>5 · Recupero de la inversión</SectionTitle>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Meses con ventas" value={fmtNum(d.monthsWithSales)} />
         <Kpi label="Resultado promedio por mes" value={fmtArs(d.avgMonthlyResult)} />
         <Kpi
@@ -117,7 +117,7 @@ export default async function TableroPage() {
       </div>
 
       <SectionTitle>6 · Control de monotributo</SectionTitle>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Facturado últimos 12 meses" value={fmtArs(d.invoiced12m)} />
         <Kpi
           label="Tope de la categoría"

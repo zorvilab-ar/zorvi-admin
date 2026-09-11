@@ -1,4 +1,13 @@
 import { db, schema } from "@/lib/db";
+import { getDbStatus, isDbConnectionError } from "@/lib/db/status";
+import { redirect, unstable_rethrow } from "next/navigation";
+import { assertAdmin } from "@/lib/auth/session";
+import {
+  customPrintCost,
+  type CustomPrintCost,
+} from "@/lib/print-cost";
+
+export { customPrintCost, type CustomPrintCost } from "@/lib/print-cost";
 
 type Settings = typeof schema.settings.$inferSelect;
 type Supply = typeof schema.supplies.$inferSelect;
@@ -12,9 +21,66 @@ type ProductionRun = typeof schema.productionRuns.$inferSelect;
 type PartnerMovement = typeof schema.partnerMovements.$inferSelect;
 type Partner = typeof schema.partners.$inferSelect;
 type FixedCost = typeof schema.fixedCosts.$inferSelect;
+type Quote = typeof schema.quotes.$inferSelect;
+type QuoteItem = typeof schema.quoteItems.$inferSelect;
+type FilamentRoll = typeof schema.filamentRolls.$inferSelect;
 
 // ── Carga completa del estado ────────────────────────────────────────
 export async function loadAll() {
+  await assertAdmin();
+  const status = await getDbStatus();
+  if (!status.ok) redirect("/conexion");
+
+  let loaded: Awaited<ReturnType<typeof fetchAll>>;
+  try {
+    loaded = await fetchAll();
+  } catch (error) {
+    unstable_rethrow(error);
+    if (isDbConnectionError(error)) redirect("/conexion");
+    throw error;
+  }
+
+  const {
+    settingsRows,
+    channels,
+    partners,
+    assets,
+    fixedCosts,
+    supplies,
+    products,
+    recipeItems,
+    productionRuns,
+    sales,
+    purchases,
+    partnerMovements,
+    quotes,
+    quoteItems,
+    filamentRolls,
+  } = loaded;
+
+  const settings = settingsRows[0];
+  if (!settings) redirect("/conexion");
+
+  return {
+    settings,
+    channels,
+    partners,
+    assets,
+    fixedCosts,
+    supplies,
+    products,
+    recipeItems,
+    productionRuns,
+    sales,
+    purchases,
+    partnerMovements,
+    quotes,
+    quoteItems,
+    filamentRolls,
+  };
+}
+
+async function fetchAll() {
   const [
     settingsRows,
     channels,
@@ -42,8 +108,22 @@ export async function loadAll() {
     db.select().from(schema.purchases),
     db.select().from(schema.partnerMovements),
   ]);
+
+  let quotes: Quote[] = [];
+  let quoteItems: QuoteItem[] = [];
+  let filamentRolls: FilamentRoll[] = [];
+  try {
+    [quotes, quoteItems, filamentRolls] = await Promise.all([
+      db.select().from(schema.quotes).orderBy(schema.quotes.id),
+      db.select().from(schema.quoteItems).orderBy(schema.quoteItems.id),
+      db.select().from(schema.filamentRolls).orderBy(schema.filamentRolls.id),
+    ]);
+  } catch {
+    // Tablas nuevas todavía no pusheadas.
+  }
+
   return {
-    settings: settingsRows[0],
+    settingsRows,
     channels,
     partners,
     assets,
@@ -55,6 +135,9 @@ export async function loadAll() {
     sales,
     purchases,
     partnerMovements,
+    quotes,
+    quoteItems,
+    filamentRolls,
   };
 }
 export type AllData = Awaited<ReturnType<typeof loadAll>>;
@@ -62,6 +145,49 @@ export type AllData = Awaited<ReturnType<typeof loadAll>>;
 // ── Insumos ──────────────────────────────────────────────────────────
 export function unitCost(s: Supply): number {
   return s.packQty > 0 ? s.purchasePrice / s.packQty : 0;
+}
+
+export function filamentPricePerKg(s: Supply): number {
+  return unitCost(s) * 1000;
+}
+
+export function mercadoLibreChannel(channels: Channel[]) {
+  return channels.find((c) => /mercado/i.test(c.name)) ?? null;
+}
+
+export function quoteItemCost(
+  item: QuoteItem,
+  suppliesById: Map<number, Supply>,
+  st: Settings,
+  amortPerHour: number,
+  marketCommission: number,
+  marketFixed: number,
+): CustomPrintCost {
+  const supply = item.filamentSupplyId
+    ? suppliesById.get(item.filamentSupplyId)
+    : undefined;
+  return customPrintCost({
+    grams: item.grams,
+    hours: item.printHours,
+    qty: item.qty,
+    filamentPricePerKg: supply ? filamentPricePerKg(supply) : 0,
+    extraSuppliesArs: item.extraSuppliesArs,
+    failureRate: st.failureRate,
+    printerWatts: st.printerWatts,
+    kwhPrice: st.kwhPrice,
+    amortPerHour,
+    targetMargin: st.targetMargin,
+    marketCommission,
+    marketFixed,
+  });
+}
+
+export function rollStockValue(roll: FilamentRoll, supply?: Supply): number {
+  if (roll.costArs > 0 && roll.initialGrams > 0) {
+    return (roll.remainingGrams / roll.initialGrams) * roll.costArs;
+  }
+  if (supply) return roll.remainingGrams * unitCost(supply);
+  return 0;
 }
 
 // ── Activos ──────────────────────────────────────────────────────────

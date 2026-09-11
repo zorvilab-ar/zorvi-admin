@@ -32,16 +32,16 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h1 className="font-display text-3xl tracking-wide">{title}</h1>
+    <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <h1 className="font-display text-2xl tracking-wide sm:text-3xl">{title}</h1>
         {description && (
           <p className="mt-1.5 max-w-3xl text-sm font-semibold text-muted-foreground">
             {description}
           </p>
         )}
       </div>
-      {actions && <div className="flex shrink-0 gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
 }
@@ -65,7 +65,7 @@ export function Kpi({
         </div>
         <div
           className={cn(
-            "mt-1 font-display text-2xl tabular-nums",
+            "mt-1 font-display text-xl tabular-nums sm:text-2xl",
             tone === "positive" && "text-[#7AA37A]",
             tone === "negative" && "text-destructive",
           )}

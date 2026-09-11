@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
+import { eq, asc } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { assertAdmin } from "@/lib/auth/session";
+import { hexForFilamentColor } from "@/lib/filament-colors";
 
 const num = (fd: FormData, key: string, def = 0): number => {
   const raw = String(fd.get(key) ?? "").replace(",", ".").trim();
@@ -20,6 +23,7 @@ const refresh = () => revalidatePath("/", "layout");
 
 // ── Parámetros ───────────────────────────────────────────────────────
 export async function updateSettings(fd: FormData) {
+  await assertAdmin();
   await db.update(schema.settings)
     .set({
       businessName: reqStr(fd, "businessName"),
@@ -48,6 +52,7 @@ export async function updateSettings(fd: FormData) {
 }
 
 export async function updateChannel(fd: FormData) {
+  await assertAdmin();
   await db.update(schema.channels)
     .set({
       commission: num(fd, "commission") / 100,
@@ -59,6 +64,7 @@ export async function updateChannel(fd: FormData) {
 
 // ── Activos ──────────────────────────────────────────────────────────
 export async function createAsset(fd: FormData) {
+  await assertAdmin();
   await db.insert(schema.assets)
     .values({
       code: reqStr(fd, "code"),
@@ -73,6 +79,7 @@ export async function createAsset(fd: FormData) {
 }
 
 export async function updateAsset(fd: FormData) {
+  await assertAdmin();
   await db.update(schema.assets)
     .set({
       code: reqStr(fd, "code"),
@@ -88,12 +95,14 @@ export async function updateAsset(fd: FormData) {
 }
 
 export async function deleteAsset(fd: FormData) {
+  await assertAdmin();
   await db.delete(schema.assets).where(eq(schema.assets.id, num(fd, "id")));
   refresh();
 }
 
 // ── Costos fijos ─────────────────────────────────────────────────────
 export async function createFixedCost(fd: FormData) {
+  await assertAdmin();
   await db.insert(schema.fixedCosts)
     .values({
       concept: reqStr(fd, "concept"),
@@ -105,6 +114,7 @@ export async function createFixedCost(fd: FormData) {
 }
 
 export async function updateFixedCost(fd: FormData) {
+  await assertAdmin();
   await db.update(schema.fixedCosts)
     .set({
       concept: reqStr(fd, "concept"),
@@ -117,6 +127,7 @@ export async function updateFixedCost(fd: FormData) {
 }
 
 export async function deleteFixedCost(fd: FormData) {
+  await assertAdmin();
   await db.delete(schema.fixedCosts)
     .where(eq(schema.fixedCosts.id, num(fd, "id")));
   refresh();
@@ -124,6 +135,7 @@ export async function deleteFixedCost(fd: FormData) {
 
 // ── Insumos ──────────────────────────────────────────────────────────
 export async function createSupply(fd: FormData) {
+  await assertAdmin();
   await db.insert(schema.supplies)
     .values({
       code: reqStr(fd, "code"),
@@ -142,6 +154,7 @@ export async function createSupply(fd: FormData) {
 }
 
 export async function updateSupply(fd: FormData) {
+  await assertAdmin();
   await db.update(schema.supplies)
     .set({
       code: reqStr(fd, "code"),
@@ -161,12 +174,14 @@ export async function updateSupply(fd: FormData) {
 }
 
 export async function deleteSupply(fd: FormData) {
+  await assertAdmin();
   await db.delete(schema.supplies)
     .where(eq(schema.supplies.id, num(fd, "id")));
   refresh();
 }
 
 export async function updateSupplyStock(fd: FormData) {
+  await assertAdmin();
   await db.update(schema.supplies)
     .set({
       initialStock: num(fd, "initialStock"),
@@ -179,6 +194,7 @@ export async function updateSupplyStock(fd: FormData) {
 
 // ── Productos ────────────────────────────────────────────────────────
 export async function createProduct(fd: FormData) {
+  await assertAdmin();
   await db.insert(schema.products)
     .values({
       code: reqStr(fd, "code"),
@@ -196,6 +212,7 @@ export async function createProduct(fd: FormData) {
 }
 
 export async function updateProduct(fd: FormData) {
+  await assertAdmin();
   await db.update(schema.products)
     .set({
       code: reqStr(fd, "code"),
@@ -214,6 +231,7 @@ export async function updateProduct(fd: FormData) {
 }
 
 export async function deleteProduct(fd: FormData) {
+  await assertAdmin();
   await db.delete(schema.products)
     .where(eq(schema.products.id, num(fd, "id")));
   refresh();
@@ -221,6 +239,7 @@ export async function deleteProduct(fd: FormData) {
 
 // ── Recetas ──────────────────────────────────────────────────────────
 export async function createRecipeItem(fd: FormData) {
+  await assertAdmin();
   await db.insert(schema.recipeItems)
     .values({
       productId: num(fd, "productId"),
@@ -233,6 +252,7 @@ export async function createRecipeItem(fd: FormData) {
 }
 
 export async function updateRecipeItem(fd: FormData) {
+  await assertAdmin();
   await db.update(schema.recipeItems)
     .set({
       supplyId: num(fd, "supplyId"),
@@ -245,6 +265,7 @@ export async function updateRecipeItem(fd: FormData) {
 }
 
 export async function deleteRecipeItem(fd: FormData) {
+  await assertAdmin();
   await db.delete(schema.recipeItems)
     .where(eq(schema.recipeItems.id, num(fd, "id")));
   refresh();
@@ -252,6 +273,7 @@ export async function deleteRecipeItem(fd: FormData) {
 
 // ── Producción ───────────────────────────────────────────────────────
 export async function createProductionRun(fd: FormData) {
+  await assertAdmin();
   await db.insert(schema.productionRuns)
     .values({
       date: reqStr(fd, "date"),
@@ -264,10 +286,38 @@ export async function createProductionRun(fd: FormData) {
       assetId: fd.get("assetId") ? num(fd, "assetId") : null,
       notes: str(fd, "notes"),
     });
+  const grams = num(fd, "gramsReal");
+  const filamentId = fd.get("filamentSupplyId")
+    ? num(fd, "filamentSupplyId")
+    : null;
+  if (filamentId && grams > 0) {
+    try {
+      await deductFilamentRolls(filamentId, grams);
+    } catch {
+      // filament_rolls todavía no existe en esta base
+    }
+  }
   refresh();
 }
 
+async function deductFilamentRolls(supplyId: number, grams: number) {
+  const rolls = await db.select().from(schema.filamentRolls)
+    .where(eq(schema.filamentRolls.supplyId, supplyId))
+    .orderBy(asc(schema.filamentRolls.openedAt), asc(schema.filamentRolls.id));
+  let left = grams;
+  for (const roll of rolls) {
+    if (left <= 0) break;
+    if (roll.remainingGrams <= 0) continue;
+    const take = Math.min(roll.remainingGrams, left);
+    await db.update(schema.filamentRolls)
+      .set({ remainingGrams: roll.remainingGrams - take })
+      .where(eq(schema.filamentRolls.id, roll.id));
+    left -= take;
+  }
+}
+
 export async function deleteProductionRun(fd: FormData) {
+  await assertAdmin();
   await db.delete(schema.productionRuns)
     .where(eq(schema.productionRuns.id, num(fd, "id")));
   refresh();
@@ -275,6 +325,7 @@ export async function deleteProductionRun(fd: FormData) {
 
 // ── Ventas ───────────────────────────────────────────────────────────
 export async function createSale(fd: FormData) {
+  await assertAdmin();
   const status = (reqStr(fd, "status") || "Cobrada") as "Cobrada" | "Pendiente";
   await db.insert(schema.sales)
     .values({
@@ -297,6 +348,7 @@ export async function createSale(fd: FormData) {
 }
 
 export async function markSaleCollected(fd: FormData) {
+  await assertAdmin();
   await db.update(schema.sales)
     .set({
       status: "Cobrada",
@@ -307,12 +359,14 @@ export async function markSaleCollected(fd: FormData) {
 }
 
 export async function deleteSale(fd: FormData) {
+  await assertAdmin();
   await db.delete(schema.sales).where(eq(schema.sales.id, num(fd, "id")));
   refresh();
 }
 
 // ── Compras ──────────────────────────────────────────────────────────
 export async function createPurchase(fd: FormData) {
+  await assertAdmin();
   const status = (reqStr(fd, "status") || "Pagada") as "Pagada" | "Pendiente";
   await db.insert(schema.purchases)
     .values({
@@ -335,6 +389,7 @@ export async function createPurchase(fd: FormData) {
 }
 
 export async function markPurchasePaid(fd: FormData) {
+  await assertAdmin();
   await db.update(schema.purchases)
     .set({
       status: "Pagada",
@@ -345,6 +400,7 @@ export async function markPurchasePaid(fd: FormData) {
 }
 
 export async function deletePurchase(fd: FormData) {
+  await assertAdmin();
   await db.delete(schema.purchases)
     .where(eq(schema.purchases.id, num(fd, "id")));
   refresh();
@@ -352,6 +408,7 @@ export async function deletePurchase(fd: FormData) {
 
 // ── Socios ───────────────────────────────────────────────────────────
 export async function createPartnerMovement(fd: FormData) {
+  await assertAdmin();
   await db.insert(schema.partnerMovements)
     .values({
       date: reqStr(fd, "date"),
@@ -365,7 +422,137 @@ export async function createPartnerMovement(fd: FormData) {
 }
 
 export async function deletePartnerMovement(fd: FormData) {
+  await assertAdmin();
   await db.delete(schema.partnerMovements)
     .where(eq(schema.partnerMovements.id, num(fd, "id")));
+  refresh();
+}
+
+// ── Presupuestos ─────────────────────────────────────────────────────
+export async function createQuote(fd: FormData) {
+  await assertAdmin();
+  const [row] = await db.insert(schema.quotes)
+    .values({
+      date: reqStr(fd, "date"),
+      clientName: reqStr(fd, "clientName"),
+      notes: str(fd, "notes"),
+      status: "Borrador",
+    })
+    .returning({ id: schema.quotes.id });
+  if (!row) throw new Error("No se pudo crear el presupuesto");
+  redirect(`/presupuestos/${row.id}`);
+}
+
+export async function updateQuote(fd: FormData) {
+  await assertAdmin();
+  await db.update(schema.quotes)
+    .set({
+      date: reqStr(fd, "date"),
+      clientName: reqStr(fd, "clientName"),
+      notes: str(fd, "notes"),
+      status: reqStr(fd, "status") as
+        | "Borrador"
+        | "Enviado"
+        | "Aceptado"
+        | "Rechazado",
+    })
+    .where(eq(schema.quotes.id, num(fd, "id")));
+  refresh();
+}
+
+export async function deleteQuote(fd: FormData) {
+  await assertAdmin();
+  await db.delete(schema.quotes)
+    .where(eq(schema.quotes.id, num(fd, "id")));
+  refresh();
+}
+
+export async function createQuoteItem(fd: FormData) {
+  await assertAdmin();
+  await db.insert(schema.quoteItems)
+    .values({
+      quoteId: num(fd, "quoteId"),
+      name: reqStr(fd, "name"),
+      description: str(fd, "description"),
+      qty: num(fd, "qty"),
+      printHours: num(fd, "printHours"),
+      grams: num(fd, "grams"),
+      filamentSupplyId: fd.get("filamentSupplyId")
+        ? num(fd, "filamentSupplyId")
+        : null,
+      extraSuppliesArs: num(fd, "extraSuppliesArs"),
+      note: str(fd, "note"),
+    });
+  refresh();
+}
+
+export async function updateQuoteItem(fd: FormData) {
+  await assertAdmin();
+  await db.update(schema.quoteItems)
+    .set({
+      name: reqStr(fd, "name"),
+      description: str(fd, "description"),
+      qty: num(fd, "qty"),
+      printHours: num(fd, "printHours"),
+      grams: num(fd, "grams"),
+      filamentSupplyId: fd.get("filamentSupplyId")
+        ? num(fd, "filamentSupplyId")
+        : null,
+      extraSuppliesArs: num(fd, "extraSuppliesArs"),
+      note: str(fd, "note"),
+    })
+    .where(eq(schema.quoteItems.id, num(fd, "id")));
+  refresh();
+}
+
+export async function deleteQuoteItem(fd: FormData) {
+  await assertAdmin();
+  await db.delete(schema.quoteItems)
+    .where(eq(schema.quoteItems.id, num(fd, "id")));
+  refresh();
+}
+
+// ── Rollos de filamento ──────────────────────────────────────────────
+export async function createFilamentRoll(fd: FormData) {
+  await assertAdmin();
+  const initial = num(fd, "initialGrams");
+  const remainingRaw = String(fd.get("remainingGrams") ?? "").trim();
+  await db.insert(schema.filamentRolls)
+    .values({
+      supplyId: num(fd, "supplyId"),
+      color: reqStr(fd, "color"),
+      colorHex: hexForFilamentColor(reqStr(fd, "color")),
+      brand: str(fd, "brand"),
+      initialGrams: initial,
+      remainingGrams: remainingRaw === "" ? initial : num(fd, "remainingGrams"),
+      costArs: num(fd, "costArs"),
+      openedAt: str(fd, "openedAt"),
+      notes: str(fd, "notes"),
+    });
+  refresh();
+}
+
+export async function updateFilamentRoll(fd: FormData) {
+  await assertAdmin();
+  await db.update(schema.filamentRolls)
+    .set({
+      supplyId: num(fd, "supplyId"),
+      color: reqStr(fd, "color"),
+      colorHex: hexForFilamentColor(reqStr(fd, "color")),
+      brand: str(fd, "brand"),
+      initialGrams: num(fd, "initialGrams"),
+      remainingGrams: num(fd, "remainingGrams"),
+      costArs: num(fd, "costArs"),
+      openedAt: str(fd, "openedAt"),
+      notes: str(fd, "notes"),
+    })
+    .where(eq(schema.filamentRolls.id, num(fd, "id")));
+  refresh();
+}
+
+export async function deleteFilamentRoll(fd: FormData) {
+  await assertAdmin();
+  await db.delete(schema.filamentRolls)
+    .where(eq(schema.filamentRolls.id, num(fd, "id")));
   refresh();
 }

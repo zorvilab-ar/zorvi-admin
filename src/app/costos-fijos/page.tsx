@@ -55,14 +55,14 @@ export default async function CostosFijosPage() {
   );
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <PageHeader
         title="Costos fijos mensuales"
         description="Lo que se paga todos los meses aunque no se venda nada. Define cuántas lámparas hay que vender para no perder plata."
         actions={addSheet}
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Kpi label="Total mensual" value={fmtArs(total)} hint={fmtUsd(data.settings.fxRate > 0 ? total / data.settings.fxRate : 0)} />
         <Kpi
           label="Costo fijo por hora productiva"

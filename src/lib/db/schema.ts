@@ -197,3 +197,47 @@ export const purchases = pgTable("purchases", {
   receipt: text("receipt"),
   notes: text("notes"),
 });
+
+// ── Presupuestos (trabajos a medida) ─────────────────────────────────
+export const quotes = pgTable("quotes", {
+  id: serial("id").primaryKey(),
+  date: text("date").notNull(),
+  clientName: text("client_name").notNull(),
+  notes: text("notes"),
+  status: text("status", {
+    enum: ["Borrador", "Enviado", "Aceptado", "Rechazado"],
+  })
+    .notNull()
+    .default("Borrador"),
+});
+
+export const quoteItems = pgTable("quote_items", {
+  id: serial("id").primaryKey(),
+  quoteId: integer("quote_id")
+    .notNull()
+    .references(() => quotes.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  qty: real("qty").notNull().default(1),
+  printHours: real("print_hours").notNull().default(0),
+  grams: real("grams").notNull().default(0),
+  filamentSupplyId: integer("filament_supply_id").references(() => supplies.id),
+  extraSuppliesArs: real("extra_supplies_ars").notNull().default(0),
+  note: text("note"),
+});
+
+// ── Rollos de filamento (stock físico) ───────────────────────────────
+export const filamentRolls = pgTable("filament_rolls", {
+  id: serial("id").primaryKey(),
+  supplyId: integer("supply_id")
+    .notNull()
+    .references(() => supplies.id),
+  color: text("color"),
+  colorHex: text("color_hex").notNull().default("#3B2A22"),
+  brand: text("brand"),
+  initialGrams: real("initial_grams").notNull().default(1000),
+  remainingGrams: real("remaining_grams").notNull().default(1000),
+  costArs: real("cost_ars").notNull().default(0),
+  openedAt: text("opened_at"),
+  notes: text("notes"),
+});
