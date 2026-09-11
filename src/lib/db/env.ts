@@ -9,6 +9,7 @@ function unquote(value: string) {
 
 /** Carga .env.local / .env si el proceso no tiene las keys (tsx, drizzle-kit). */
 export function hydrateEnvFiles() {
+  if (process.env.VERCEL) return;
   for (const file of ENV_FILES) {
     const path = resolve(process.cwd(), file);
     if (!existsSync(path)) continue;

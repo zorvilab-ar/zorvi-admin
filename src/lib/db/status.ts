@@ -1,7 +1,7 @@
 import { cache } from "react";
-import { Client } from "pg";
-import { getDatabaseUrl, isRemoteDatabaseUrl } from "./env";
-import { CONNECT_TIMEOUT_MS } from "./pool";
+import { getDatabaseUrl } from "./env";
+import { getPool, CONNECT_TIMEOUT_MS } from "./pool";
+import { isSchemaMissingError } from "./errors";
 
 export type DbIssueReason =
   | "missing_env"
@@ -35,7 +35,7 @@ const COPY: Record<
   },
   unreachable: {
     title: "No hay conexión con la base de datos",
-    hint: "En local levantá Postgres con `make db-up`. En Vercel, revisá que POSTGRES_URL sea la de Supabase (no localhost) y que tenga sslmode=require.",
+    hint: "En local levantá Postgres con `make db-up`. En Vercel, DATABASE_URL tiene que ser el connection string de Postgres (postgresql://…), no la URL https del proyecto.",
   },
   schema_missing: {
     title: "La base está vacía: falta el schema",
@@ -81,28 +81,18 @@ async function probeDb(): Promise<DbStatus> {
   const url = getDatabaseUrl();
   if (!url) return dbIssue("missing_env");
 
-  const client = new Client({
-    connectionString: url,
-    connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
-    ssl: isRemoteDatabaseUrl(url) ? { rejectUnauthorized: false } : undefined,
-  });
-
   try {
-    await withTimeout(client.connect(), CONNECT_TIMEOUT_MS);
     const result = await withTimeout(
-      client.query("select 1 from settings limit 1"),
+      getPool().query("select 1 from settings limit 1"),
       CONNECT_TIMEOUT_MS,
     );
     if (!result.rowCount) return dbIssue("not_seeded");
     return { ok: true };
   } catch (error) {
-    const code = pgCode(error);
-    if (code === "42P01" || /relation .* does not exist/i.test(code)) {
+    if (isSchemaMissingError(error) || pgCode(error) === "42P01") {
       return dbIssue("schema_missing");
     }
     return dbIssue("unreachable");
-  } finally {
-    await client.end().catch(() => undefined);
   }
 }
 

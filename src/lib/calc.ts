@@ -1,11 +1,15 @@
+import { cache } from "react";
 import { db, schema } from "@/lib/db";
-import { getDbStatus, isDbConnectionError } from "@/lib/db/status";
+import { isDbConnectionError } from "@/lib/db/status";
+import { isSchemaMissingError } from "@/lib/db/errors";
 import { redirect, unstable_rethrow } from "next/navigation";
-import { assertAdmin } from "@/lib/auth/session";
+import { getAdminUser } from "@/lib/auth/session";
+import { isAuthRequired } from "@/lib/supabase/config";
 import {
   customPrintCost,
   type CustomPrintCost,
 } from "@/lib/print-cost";
+
 
 export { customPrintCost, type CustomPrintCost } from "@/lib/print-cost";
 
@@ -21,22 +25,26 @@ type ProductionRun = typeof schema.productionRuns.$inferSelect;
 type PartnerMovement = typeof schema.partnerMovements.$inferSelect;
 type Partner = typeof schema.partners.$inferSelect;
 type FixedCost = typeof schema.fixedCosts.$inferSelect;
-type Quote = typeof schema.quotes.$inferSelect;
 type QuoteItem = typeof schema.quoteItems.$inferSelect;
 type FilamentRoll = typeof schema.filamentRolls.$inferSelect;
 
 // ── Carga completa del estado ────────────────────────────────────────
-export async function loadAll() {
-  await assertAdmin();
-  const status = await getDbStatus();
-  if (!status.ok) redirect("/conexion");
+export const loadAll = cache(async () => {
+  const requireAuth = isAuthRequired();
 
   let loaded: Awaited<ReturnType<typeof fetchAll>>;
   try {
-    loaded = await fetchAll();
+    const [user, rows] = await Promise.all([
+      requireAuth ? getAdminUser() : Promise.resolve(null),
+      fetchAll(),
+    ]);
+    if (requireAuth && !user) redirect("/login");
+    loaded = rows;
   } catch (error) {
     unstable_rethrow(error);
-    if (isDbConnectionError(error)) redirect("/conexion");
+    if (isDbConnectionError(error) || isSchemaMissingError(error)) {
+      redirect("/conexion");
+    }
     throw error;
   }
 
@@ -78,7 +86,7 @@ export async function loadAll() {
     quoteItems,
     filamentRolls,
   };
-}
+});
 
 async function fetchAll() {
   const [
@@ -94,6 +102,9 @@ async function fetchAll() {
     sales,
     purchases,
     partnerMovements,
+    quotes,
+    quoteItems,
+    filamentRolls,
   ] = await Promise.all([
     db.select().from(schema.settings),
     db.select().from(schema.channels).orderBy(schema.channels.id),
@@ -107,20 +118,10 @@ async function fetchAll() {
     db.select().from(schema.sales),
     db.select().from(schema.purchases),
     db.select().from(schema.partnerMovements),
+    db.select().from(schema.quotes).orderBy(schema.quotes.id),
+    db.select().from(schema.quoteItems).orderBy(schema.quoteItems.id),
+    db.select().from(schema.filamentRolls).orderBy(schema.filamentRolls.id),
   ]);
-
-  let quotes: Quote[] = [];
-  let quoteItems: QuoteItem[] = [];
-  let filamentRolls: FilamentRoll[] = [];
-  try {
-    [quotes, quoteItems, filamentRolls] = await Promise.all([
-      db.select().from(schema.quotes).orderBy(schema.quotes.id),
-      db.select().from(schema.quoteItems).orderBy(schema.quoteItems.id),
-      db.select().from(schema.filamentRolls).orderBy(schema.filamentRolls.id),
-    ]);
-  } catch {
-    // Tablas nuevas todavía no pusheadas.
-  }
 
   return {
     settingsRows,

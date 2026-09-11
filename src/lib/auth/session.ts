@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { isAllowedAdmin } from "./admins";
 import {
@@ -6,7 +7,7 @@ import {
 } from "@/lib/supabase/config";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-export async function getAdminUser() {
+export const getAdminUser = cache(async () => {
   if (!isSupabaseConfigured()) return null;
   const supabase = await createServerSupabase();
   const {
@@ -14,7 +15,7 @@ export async function getAdminUser() {
   } = await supabase.auth.getUser();
   if (!user || !isAllowedAdmin(user.email)) return null;
   return user;
-}
+});
 
 export async function assertAdmin() {
   if (!isAuthRequired()) return;

@@ -6,7 +6,8 @@ const globalForDb = globalThis as unknown as {
   poolKey?: string;
 };
 
-export const CONNECT_TIMEOUT_MS = 2500;
+/** Local Docker responde al toque; Vercel → São Paulo necesita más margen en cold start. */
+export const CONNECT_TIMEOUT_MS = process.env.VERCEL ? 8000 : 2500;
 
 export function getPool(): Pool {
   const url = getDatabaseUrl();

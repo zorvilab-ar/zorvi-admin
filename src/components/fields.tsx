@@ -1,10 +1,19 @@
+"use client";
+
+import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /**
  * Campos de formulario con label visible y ayuda opcional.
- * Server-safe: se renderizan en el server y se pasan como children al FormSheet.
+ * defaultValue se normaliza a string estable: Base UI avisa si cambia
+ * después de montar (p. ej. number → string, o "" → "1000").
  */
+
+function toDefault(value: string | number | null | undefined): string | undefined {
+  if (value == null || value === "") return undefined;
+  return String(value);
+}
 
 function Wrap({
   label,
@@ -49,12 +58,13 @@ export function TextField({
   placeholder?: string;
   span2?: boolean;
 }) {
+  const id = React.useId();
   return (
-    <Wrap label={label} hint={hint} htmlFor={name} span2={span2}>
+    <Wrap label={label} hint={hint} htmlFor={id} span2={span2}>
       <Input
-        id={name}
+        id={id}
         name={name}
-        defaultValue={defaultValue ?? ""}
+        defaultValue={toDefault(defaultValue)}
         required={required}
         placeholder={placeholder}
       />
@@ -81,15 +91,16 @@ export function NumberField({
   suffix?: string; // ej: "ARS", "%", "g", "h"
   span2?: boolean;
 }) {
+  const id = React.useId();
   return (
-    <Wrap label={label} hint={hint} htmlFor={name} span2={span2}>
+    <Wrap label={label} hint={hint} htmlFor={id} span2={span2}>
       <div className="relative">
         <Input
-          id={name}
+          id={id}
           name={name}
           type="number"
           step="any"
-          defaultValue={defaultValue ?? ""}
+          defaultValue={toDefault(defaultValue)}
           required={required}
           placeholder={placeholder}
           className={suffix ? "pr-12" : undefined}
@@ -119,13 +130,14 @@ export function DateField({
   required?: boolean;
   span2?: boolean;
 }) {
+  const id = React.useId();
   return (
-    <Wrap label={label} hint={hint} htmlFor={name} span2={span2}>
+    <Wrap label={label} hint={hint} htmlFor={id} span2={span2}>
       <Input
-        id={name}
+        id={id}
         name={name}
         type="date"
-        defaultValue={defaultValue ?? ""}
+        defaultValue={toDefault(defaultValue)}
         required={required}
       />
     </Wrap>
@@ -151,13 +163,14 @@ export function SelectField({
   placeholder?: string;
   span2?: boolean;
 }) {
+  const id = React.useId();
   return (
-    <Wrap label={label} hint={hint} htmlFor={name} span2={span2}>
+    <Wrap label={label} hint={hint} htmlFor={id} span2={span2}>
       <select
-        id={name}
+        id={id}
         name={name}
         required={required}
-        defaultValue={defaultValue ?? ""}
+        defaultValue={toDefault(defaultValue) ?? ""}
         className="h-9 w-full rounded-[10px] border-2 border-border bg-[#FFF7EA] px-3 text-sm font-semibold"
       >
         {placeholder !== undefined && <option value="">{placeholder}</option>}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { NAV_GROUPS } from "@/components/nav-config";
 
@@ -13,6 +13,7 @@ export function NavLinks({
   compact?: boolean;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <nav className={cn("space-y-4", compact ? "px-3 py-3" : "px-3 py-4")}>
@@ -32,6 +33,9 @@ export function NavLinks({
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={false}
+                  onMouseEnter={() => router.prefetch(item.href)}
+                  onFocus={() => router.prefetch(item.href)}
                   onClick={onNavigate}
                   className={cn(
                     "flex items-center gap-2.5 rounded-full px-3 text-sm font-bold transition-colors",
