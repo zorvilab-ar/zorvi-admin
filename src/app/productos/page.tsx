@@ -5,6 +5,7 @@ import { PageHeader, EmptyState } from "@/components/shared";
 import { FormSheet } from "@/components/form-sheet";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { TextField, NumberField, SelectField } from "@/components/fields";
+import { SlicerImport } from "@/components/slicer-import";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -46,6 +47,7 @@ export default async function ProductosPage() {
       <TextField name="name" label="Nombre" required placeholder="Lámpara Hongo" />
       <TextField name="model" label="Archivo / modelo 3D" placeholder="hongo_v2.3mf" />
       <SelectField name="status" label="Estado" defaultValue="En desarrollo" options={STATUS_OPTIONS} />
+      <SlicerImport />
       <NumberField name="printHours" label="Horas de impresión" suffix="h" hint="Del slicer. Con esto se calculan luz, desgaste de máquina y costos fijos." />
       <NumberField name="grams" label="Gramos de filamento" suffix="g" hint="Del slicer, informativo." />
       <NumberField name="assemblyMinutes" label="Minutos de armado" suffix="min" hint="Cablear, embalar, etiquetar." />
