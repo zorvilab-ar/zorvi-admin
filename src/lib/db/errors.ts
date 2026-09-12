@@ -32,5 +32,8 @@ export function dbErrorToast(error: unknown): string {
   if (isDbConnectionError(error)) {
     return "La base de datos no está disponible. Levantá Docker o revisá DATABASE_URL.";
   }
+  if (error instanceof Error && error.name === "ValidationError") {
+    return error.message;
+  }
   return "No se pudo guardar. Revisá los datos.";
 }
