@@ -56,11 +56,11 @@ metía strings arbitrarios en columnas enum. Ahora cada `FormData` se valida ant
 
 ## 3. 🎯 Alto impacto / bajo esfuerzo (siguiente sprint)
 
-### 3.1 Constraints e índices en la DB
-El schema no tiene ni un `CHECK` ni índices más allá de PK/unique.
-- [ ] `CHECK` de integridad: `amount_ars >= 0`, `qty > 0`, `commission between 0 and 1`, `remaining_grams <= initial_grams`.
-- [ ] Índices en columnas de filtro/orden: `sales.date`, `purchases.date` y todas las FKs.
-- [ ] Migrar enums `text` a `pgEnum` reales de Drizzle (validación a nivel DB).
+### 3.1 Constraints e índices en la DB — **HECHO ✅** (código) / ⏳ aplicar en prod
+- [x] **26 `CHECK`** de integridad en `schema.ts` (montos no-negativos, `qty > 0`, fracciones `0..1`, `remaining_grams <= initial_grams`, enums). Validado en Postgres local: rechaza montos negativos y enums inválidos.
+- [x] **14 índices** en FKs + columnas de filtro/orden (`sales.date`, `purchases.date`, etc.).
+- [x] Enums validados vía `CHECK` en vez de `pgEnum` — misma garantía a nivel DB, cero riesgo de migración de tipos sobre datos vivos; `text({enum})` queda como fuente TS.
+- [ ] **Aplicar en prod**: `pnpm db:push` (con `DATABASE_URL` de prod) **o** correr `supabase/constraints-indexes.sql` en el SQL Editor (incluye un pre-flight que detecta filas que violarían un CHECK).
 
 ### 3.2 Carga selectiva en `loadAll`
 `loadAll` trae las 15 tablas enteras en cada render (`force-dynamic`, sin paginación).
