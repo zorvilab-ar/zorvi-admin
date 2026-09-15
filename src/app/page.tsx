@@ -1,4 +1,4 @@
-import { loadAll, dashboard, allProductCosts } from "@/lib/calc";
+import { loadTablero } from "@/lib/views/client";
 import { fmtArs, fmtNum, fmtPct, fmtUsd } from "@/lib/format";
 import { PageHeader, Kpi, SectionTitle } from "@/components/shared";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,9 +16,8 @@ import { AlertTriangle } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function TableroPage() {
-  const data = await loadAll();
-  const d = dashboard(data);
-  const costs = allProductCosts(data);
+  // Los números ya vienen calculados del backend: esta página solo los pinta.
+  const { kpis: d, settings, productos } = await loadTablero();
 
   const capAlert =
     d.capUse === null
@@ -111,8 +110,8 @@ export default async function TableroPage() {
         <Kpi
           label="Producidas / falladas"
           value={`${fmtNum(d.unitsProduced)} / ${fmtNum(d.unitsFailed)}`}
-          hint={`Tasa de falla real ${fmtPct(d.failRateReal)} (supuesto ${fmtPct(data.settings.failureRate)})`}
-          tone={d.failRateReal > data.settings.failureRate ? "negative" : "neutral"}
+          hint={`Tasa de falla real ${fmtPct(d.failRateReal)} (supuesto ${fmtPct(settings.failureRate)})`}
+          tone={d.failRateReal > settings.failureRate ? "negative" : "neutral"}
         />
         <Kpi
           label="Contribución por hora"
@@ -139,7 +138,7 @@ export default async function TableroPage() {
         <Kpi label="Facturado últimos 12 meses" value={fmtArs(d.invoiced12m)} />
         <Kpi
           label="Tope de la categoría"
-          value={data.settings.monotributoCap > 0 ? fmtArs(data.settings.monotributoCap) : "—"}
+          value={settings.monotributoCap > 0 ? fmtArs(settings.monotributoCap) : "—"}
         />
         <Kpi
           label="Consumo del tope"
@@ -165,25 +164,21 @@ export default async function TableroPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.products.map((p) => {
-                const c = costs.get(p.id)!;
-                const perHour = p.printHours > 0 ? c.contribution / p.printHours : 0;
-                return (
-                  <TableRow key={p.id}>
+              {productos.map((p) => (
+                  <TableRow key={p.code}>
                     <TableCell className="font-mono text-xs">{p.code}</TableCell>
                     <TableCell>{p.name}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtArs(c.variableCost)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtArs(c.totalCost)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtArs(p.variableCost)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtArs(p.totalCost)}</TableCell>
                     <TableCell className="text-right tabular-nums">{fmtArs(p.listPrice)}</TableCell>
-                    <TableCell className={`text-right tabular-nums ${c.contribution < 0 ? "text-red-600" : ""}`}>
-                      {p.listPrice > 0 ? `${fmtArs(c.contribution)} (${fmtPct(c.contributionPct)})` : "—"}
+                    <TableCell className={`text-right tabular-nums ${p.contribution < 0 ? "text-destructive" : ""}`}>
+                      {p.listPrice > 0 ? `${fmtArs(p.contribution)} (${fmtPct(p.contributionPct)})` : "—"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {p.listPrice > 0 && p.printHours > 0 ? fmtArs(perHour) : "—"}
+                      {p.listPrice > 0 && p.printHours > 0 ? fmtArs(p.contributionPerHour) : "—"}
                     </TableCell>
                   </TableRow>
-                );
-              })}
+              ))}
             </TableBody>
           </Table>
         </CardContent>

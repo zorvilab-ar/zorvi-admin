@@ -104,6 +104,11 @@ export function getEstado<T>(): Promise<T> {
   return call<T>("/state");
 }
 
+/** Una vista ya calculada: `dashboard`, `stock`, `resumen`… */
+export function getVista<T>(nombre: string): Promise<T> {
+  return call<T>(`/view/${nombre}`);
+}
+
 /** Catálogo completo de la tienda, borradores incluidos. */
 export function getListings() {
   return call<ListingTienda[]>("/catalog");

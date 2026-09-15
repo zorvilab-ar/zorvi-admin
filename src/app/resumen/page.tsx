@@ -1,4 +1,4 @@
-import { loadAll, monthlySummary } from "@/lib/calc";
+import { loadResumen } from "@/lib/views/client";
 import { fmtArs, fmtNum, fmtPct, fmtMonth } from "@/lib/format";
 import { PageHeader, Kpi, SectionTitle } from "@/components/shared";
 import { DownloadCsv } from "@/components/download-csv";
@@ -29,8 +29,8 @@ export default async function ResumenPage({
   searchParams: Promise<{ mes?: string }>;
 }) {
   const { mes } = await searchParams;
-  const data = await loadAll();
-  const rows = monthlySummary(data);
+  // La tabla mes a mes la calcula el backend: acá solo se elige el mes y se pinta.
+  const { meses: rows } = await loadResumen();
   const today = new Date().toISOString().slice(0, 7);
   const selected =
     mes && rows.some((r) => r.month === mes)

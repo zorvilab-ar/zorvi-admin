@@ -1,4 +1,4 @@
-import { loadAll, productStocks, supplyStocks, rollStockValue } from "@/lib/calc";
+import { loadStock } from "@/lib/views/client";
 import {
   updateSupplyStock,
   createFilamentRoll,
@@ -101,12 +101,11 @@ function RollFields({
 }
 
 export default async function StockPage() {
-  const data = await loadAll();
-  const pStocks = productStocks(data);
-  const sStocks = supplyStocks(data);
+  // Todo calculado en el backend: productos, insumos y rollos ya vienen con
+  // sus totales y su valorización.
+  const { productos: pStocks, insumos: sStocks, rollos, filamentos: filaments } =
+    await loadStock();
   const today = new Date().toISOString().slice(0, 10);
-  const suppliesById = new Map(data.supplies.map((s) => [s.id, s]));
-  const filaments = data.supplies.filter((s) => s.category === "Filamento");
   const filamentOptions = filaments.map((s) => ({
     value: s.id,
     label: `${s.code} — ${s.name}`,
@@ -114,8 +113,8 @@ export default async function StockPage() {
 
   const pValue = pStocks.reduce((a, s) => a + s.stockValue, 0);
   const sValue = sStocks.reduce((a, s) => a + s.stockValue, 0);
-  const rollValue = data.filamentRolls.reduce(
-    (a, r) => a + rollStockValue(r, suppliesById.get(r.supplyId)),
+  const rollValue = rollos.reduce(
+    (a, r) => a + r.valor,
     0,
   );
   const alerts = sStocks.filter((s) => s.alert);
@@ -146,22 +145,22 @@ export default async function StockPage() {
         <Kpi
           label="Valor en rollos"
           value={fmtArs(rollValue)}
-          hint={`${data.filamentRolls.length} rollo${data.filamentRolls.length === 1 ? "" : "s"}`}
+          hint={`${rollos.length} rollo${rollos.length === 1 ? "" : "s"}`}
         />
         <Kpi
           label="Alertas de reposición"
           value={String(alerts.length)}
           tone={alerts.length > 0 ? "negative" : "positive"}
-          hint={alerts.length > 0 ? `Hay que comprar: ${alerts.map((a) => a.supply.code).join(", ")}` : "Todo por encima del mínimo ✔"}
+          hint={alerts.length > 0 ? `Hay que comprar: ${alerts.map((a) => a.code).join(", ")}` : "Todo por encima del mínimo ✔"}
         />
       </div>
 
       <div className="mb-3 mt-1 flex flex-wrap items-end justify-between gap-3">
         <h2 className="font-display text-lg tracking-wide">Rollos de filamento</h2>
-        {data.filamentRolls.length > 0 ? addRoll : null}
+        {rollos.length > 0 ? addRoll : null}
       </div>
 
-      {data.filamentRolls.length === 0 ? (
+      {rollos.length === 0 ? (
         <div className="mb-8">
           <EmptyState
             title="Todavía no hay rollos cargados"
@@ -176,14 +175,13 @@ export default async function StockPage() {
         </div>
       ) : (
         <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {data.filamentRolls.map((roll) => {
-            const supply = suppliesById.get(roll.supplyId);
+          {rollos.map((roll) => {
             const pct =
               roll.initialGrams > 0
                 ? Math.max(0, Math.min(1, roll.remainingGrams / roll.initialGrams))
                 : 0;
             const low = pct <= 0.2;
-            const value = rollStockValue(roll, supply);
+            const value = roll.valor;
             return (
               <Card key={roll.id} className={low ? "ring-2 ring-primary" : ""}>
                 <CardContent className="space-y-3 py-4">
@@ -199,7 +197,7 @@ export default async function StockPage() {
                           {roll.brand ? ` · ${roll.brand}` : ""}
                         </div>
                         <div className="text-xs font-semibold text-muted-foreground">
-                          {supply ? `${supply.code} — ${supply.name}` : "Insumo"}
+                          {roll.supplyCode ? `${roll.supplyCode} — ${roll.supplyName}` : "Insumo"}
                         </div>
                       </div>
                     </div>
@@ -275,9 +273,9 @@ export default async function StockPage() {
             </TableHeader>
             <TableBody>
               {pStocks.map((s) => (
-                <TableRow key={s.product.id}>
-                  <TableCell className="font-mono text-xs">{s.product.code}</TableCell>
-                  <TableCell className="font-bold">{s.product.name}</TableCell>
+                <TableRow key={s.id}>
+                  <TableCell className="font-mono text-xs">{s.code}</TableCell>
+                  <TableCell className="font-bold">{s.name}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtNum(s.initial)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtNum(s.produced)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtNum(s.sold)}</TableCell>
@@ -320,15 +318,15 @@ export default async function StockPage() {
             </TableHeader>
             <TableBody>
               {sStocks.map((s) => (
-                <TableRow key={s.supply.id} className={s.alert ? "bg-destructive/10" : ""}>
-                  <TableCell className="font-mono text-xs">{s.supply.code}</TableCell>
-                  <TableCell className="font-bold">{s.supply.name}</TableCell>
+                <TableRow key={s.id} className={s.alert ? "bg-destructive/10" : ""}>
+                  <TableCell className="font-mono text-xs">{s.code}</TableCell>
+                  <TableCell className="font-bold">{s.name}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtNum(s.initial)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtNum(s.purchased)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtNum(s.consumed)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtNum(s.manualAdjust)}</TableCell>
                   <TableCell className={`text-right font-display tabular-nums ${s.current < 0 ? "text-destructive" : ""}`}>
-                    {fmtNum(s.current)} {s.supply.unit}
+                    {fmtNum(s.current)} {s.unit}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{fmtArs(s.stockValue)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtNum(s.reorderPoint)}</TableCell>
@@ -342,15 +340,15 @@ export default async function StockPage() {
                   <TableCell className="text-right">
                     <FormSheet
                       mode="edit"
-                      title={`Ajustar stock: ${s.supply.code}`}
+                      title={`Ajustar stock: ${s.code}`}
                       description="Lo único manual del stock: lo que contás en el cajón y el mínimo antes de recomprar."
                       action={updateSupplyStock}
                       successMessage="Stock ajustado"
                     >
-                      <input type="hidden" name="id" value={s.supply.id} />
-                      <NumberField name="initialStock" label="Stock inicial" defaultValue={s.initial} suffix={s.supply.unit} hint="Lo que había antes de empezar a registrar." />
-                      <NumberField name="manualAdjust" label="Ajuste manual (±)" defaultValue={s.manualAdjust} suffix={s.supply.unit} hint="Diferencia contra lo que contaste en el cajón. Puede ser negativo." />
-                      <NumberField name="reorderPoint" label="Punto de reposición" defaultValue={s.reorderPoint} suffix={s.supply.unit} hint="Cuando el stock baja de acá, aparece la alerta ¡Comprar!" />
+                      <input type="hidden" name="id" value={s.id} />
+                      <NumberField name="initialStock" label="Stock inicial" defaultValue={s.initial} suffix={s.unit} hint="Lo que había antes de empezar a registrar." />
+                      <NumberField name="manualAdjust" label="Ajuste manual (±)" defaultValue={s.manualAdjust} suffix={s.unit} hint="Diferencia contra lo que contaste en el cajón. Puede ser negativo." />
+                      <NumberField name="reorderPoint" label="Punto de reposición" defaultValue={s.reorderPoint} suffix={s.unit} hint="Cuando el stock baja de acá, aparece la alerta ¡Comprar!" />
                     </FormSheet>
                   </TableCell>
                 </TableRow>
