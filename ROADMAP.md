@@ -37,7 +37,15 @@ disponible para usuarios logueados (`authenticated`).
 - [ ] **Repo en privado** (el historial de git todavía tiene los valores viejos).
 - [ ] **Desactivar signup público** en Supabase → Authentication → Providers (si no, un atacante se autoregistra y la policy `using(true)` de `sales` le deja leer todas las ventas).
 
-### 1.3 TLS de la conexión a la DB — **PENDIENTE**
+### 1.3 Rol de aplicación sin DDL — **LISTO PARA APLICAR** (2026-09-15)
+Hoy la app se conecta como `postgres`: dueño de las tablas, con DDL y bypass de RLS.
+- [x] `supabase/role-zorvi-app.sql` — crea `zorvi_app` (select/insert/update/delete, **sin** DDL), con las policies de RLS que un rol no-dueño necesita, verificación previa y rollback.
+- [x] **Probado contra Postgres 17 con el RLS de `setup.sql` puesto.** Verificado: lee y escribe las 15 tablas, `create table` / `drop table` / `alter table` fallan, `anon` sigue con `permission denied`, `authenticated` conserva solo el SELECT de `sales` para el realtime, y Drizzle conecta y hace transacciones con ese rol.
+- [x] ⚠️ Confirmado el modo de falla que hay que evitar: un rol con grants pero **sin** las policies no da error — devuelve **0 filas**. La app se vería con todas las tablas vacías, como si se hubieran borrado los datos. Por eso las policies no son opcionales.
+- [ ] **Correr en el SQL Editor** y dejar en Vercel `DATABASE_URL` → `zorvi_app` y `DIRECT_URL` → `postgres` (solo para `db:push`). No hace falta tocar código: `drizzle.config.ts` ya prioriza `DIRECT_URL`.
+- Es además el primer paso de la separación admin / tienda: cada servicio con su rol sobre su schema.
+
+### 1.4 TLS de la conexión a la DB — **PENDIENTE**
 - [ ] `src/lib/db/pool.ts` usa `rejectUnauthorized: false` para toda DB remota → riesgo de MITM. Usar el CA real de Supabase en vez de desactivar la verificación.
 
 ---
@@ -105,9 +113,11 @@ Ya se trackea `invoiced`, `monotributo_cap` y `monotributo_category`.
 App con plata real y varios admins (agus, nico, juanchi, mariano), sin rastro de quién cambió qué.
 - [ ] Tabla `audit_log` (user, action, table, row_id, diff, timestamp) escrita desde los server actions.
 
-### 5.2 Tests sobre la lógica de negocio
-`calc.ts` / `print-cost.ts` (pricing, márgenes, break-even) no tienen un solo test.
-- [ ] Vitest sobre los cálculos clave.
+### 5.2 Tests sobre la lógica de negocio — **HECHO ✅** (2026-09-15)
+- [x] Vitest (`pnpm test`). **50 tests** sobre `calc.ts` y `print-cost.ts`: ficha de costo, precios por canal, cálculo de venta, stock, caja mensual, cuentas de socios, tablero y monotributo.
+- [x] Fixtures con los números reales del negocio (`src/lib/__tests__/fixtures.ts`): 19,99 $/g de filamento, 293 $/h de desgaste, 35.000 de precio de lista. Cuando un test falla, el número que aparece significa algo.
+- [x] Regresiones con nombre para los hallazgos de QA 3, 6, 7 y 8, para que no vuelvan.
+- [x] Verificado por mutación: rompiendo a propósito el filtro de impresoras y el tope del aviso del Tablero, los tests fallan. No son tests vacíos.
 
 ### 5.3 CI en GitHub Actions
 - [ ] `tsc + eslint + test` en cada PR.
@@ -145,6 +155,12 @@ Los ocho puntos del reporte de QA, con lo que se hizo en cada uno.
 > ⚠️ **Requiere migración.** Tres columnas nuevas: correr `supabase/qa-fixes.sql`
 > en el SQL Editor **o** `pnpm db:push` con el `DATABASE_URL` de prod. Sin eso la
 > app rompe, porque el código ya las usa.
+>
+> **Probada (2026-09-15)** sobre una base con el schema anterior (commit `1415952`):
+> corre sin errores, el backfill deja `HERR-001` como Herramienta e `IMP-001` como
+> Impresora, las columnas quedan idénticas a un `db:push` limpio del schema nuevo,
+> la FK del aporte borra en cascada, el CHECK rechaza un tipo inválido y una
+> segunda corrida no rompe nada.
 
 | # | Hallazgo | Estado |
 | --- | --- | --- |
