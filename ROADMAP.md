@@ -119,8 +119,12 @@ App con plata real y varios admins (agus, nico, juanchi, mariano), sin rastro de
 - [x] Regresiones con nombre para los hallazgos de QA 3, 6, 7 y 8, para que no vuelvan.
 - [x] Verificado por mutación: rompiendo a propósito el filtro de impresoras y el tope del aviso del Tablero, los tests fallan. No son tests vacíos.
 
-### 5.3 CI en GitHub Actions
-- [ ] `tsc + eslint + test` en cada PR.
+### 5.3 CI en GitHub Actions — **HECHO ✅** (2026-09-15)
+- [x] `.github/workflows/ci.yml`: tipos, lint, tests y **build**, en push a `main`/`develop` y en cada PR.
+- [x] Corre también en **push**, no solo en PR: hoy el equipo commitea directo a `develop`, así que un CI solo-PR no se ejecutaría nunca.
+- [x] El `build` está porque es lo único que detecta que un componente cruzó mal el límite server/client — `tsc` no lo ve y los tests tampoco. No necesita base ni variables de entorno: verificado corriendo los cuatro pasos sin `.env`.
+- [x] Node 22 (la LTS, y la que usa el build de Vercel); en desarrollo estamos en 24.
+- [ ] Opcional más adelante: un job con un Postgres de servicio que aplique los `.sql` de `supabase/` sobre el schema anterior, para que las migraciones se prueben solas.
 
 ### 5.4 Deuda menor
 - [x] `src/components/mobile-nav.tsx` — resuelto ajustando el estado durante el render en vez de en un efecto. **`eslint` ahora da 0 errores y 0 warnings.**

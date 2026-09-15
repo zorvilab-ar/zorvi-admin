@@ -1,0 +1,56 @@
+name: CI
+
+# El equipo commitea directo a `develop`, así que el trigger de push no es
+# opcional: si esto corriera solo en pull_request, no se ejecutaría nunca.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# Si llegan dos pushes seguidos, cancela el run viejo y deja solo el último.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    name: Tipos, lint, tests y build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Toma la versión de pnpm del campo `packageManager` del package.json,
+      # así no hay un número más que mantener sincronizado.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 22 es la LTS y la que usa el build de Vercel. En desarrollo estamos
+          # en 24: si algo funciona local y falla acá, es esta diferencia.
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Tipos
+        run: pnpm exec tsc --noEmit
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Tests
+        run: pnpm test
+
+      # Lo único que detecta que un componente cruzó mal el límite
+      # server/client: `tsc` no lo ve y los tests tampoco. No necesita base ni
+      # variables de entorno — todas las páginas son force-dynamic, así que no
+      # se prerenderiza nada en build.
+      - name: Build
+        run: pnpm build
