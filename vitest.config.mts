@@ -10,7 +10,11 @@ import { resolve } from "node:path";
  */
 export default defineConfig({
   resolve: {
-    alias: { "@": resolve(import.meta.dirname, "./src") },
+    alias: {
+      "@": resolve(import.meta.dirname, "./src"),
+      // Ver el comentario en stubs/server-only.ts
+      "server-only": resolve(import.meta.dirname, "./src/lib/__tests__/stubs/server-only.ts"),
+    },
   },
   test: {
     environment: "node",

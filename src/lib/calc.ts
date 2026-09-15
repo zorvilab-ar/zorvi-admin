@@ -1,10 +1,9 @@
 import { cache } from "react";
-import { db, schema } from "@/lib/db";
-import { isDbConnectionError } from "@/lib/db/status";
-import { isSchemaMissingError } from "@/lib/db/errors";
+import { schema } from "@/lib/db";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { getAdminUser } from "@/lib/auth/session";
 import { isAuthRequired } from "@/lib/supabase/config";
+import { getEstado } from "@/lib/shop/client";
 import {
   customPrintCost,
   type CustomPrintCost,
@@ -26,119 +25,46 @@ type QuoteItem = typeof schema.quoteItems.$inferSelect;
 type FilamentRoll = typeof schema.filamentRolls.$inferSelect;
 
 // ── Carga completa del estado ────────────────────────────────────────
-export const loadAll = cache(async () => {
-  const requireAuth = isAuthRequired();
+/**
+ * El estado ya no sale de esta base: lo sirve `zorvi-backend`, que es el dueño
+ * de los datos. La forma de lo que devuelve es exactamente la misma que cuando
+ * consultaba Postgres directo, así que las páginas no se enteraron del cambio.
+ *
+ * Sigue envuelto en `cache()` de React: dentro de un mismo render, varias
+ * páginas o componentes que llamen a `loadAll()` comparten una sola llamada.
+ * Antes ahorraba 15 consultas; ahora ahorra un viaje HTTP, que pesa más.
+ */
+export const loadAll = cache(async (): Promise<AllData> => {
+  if (isAuthRequired() && !(await getAdminUser())) redirect("/login");
 
-  let loaded: Awaited<ReturnType<typeof fetchAll>>;
   try {
-    const [user, rows] = await Promise.all([
-      requireAuth ? getAdminUser() : Promise.resolve(null),
-      fetchAll(),
-    ]);
-    if (requireAuth && !user) redirect("/login");
-    loaded = rows;
+    return await getEstado<AllData>();
   } catch (error) {
     unstable_rethrow(error);
-    if (isDbConnectionError(error) || isSchemaMissingError(error)) {
-      redirect("/conexion");
-    }
-    throw error;
+    // Sin backend no hay nada que mostrar: la pantalla de /conexion explica
+    // qué revisar, igual que cuando el problema era la base.
+    redirect("/conexion");
   }
-
-  const {
-    settingsRows,
-    channels,
-    partners,
-    assets,
-    fixedCosts,
-    supplies,
-    products,
-    recipeItems,
-    productionRuns,
-    sales,
-    purchases,
-    partnerMovements,
-    quotes,
-    quoteItems,
-    filamentRolls,
-  } = loaded;
-
-  const settings = settingsRows[0];
-  if (!settings) redirect("/conexion");
-
-  return {
-    settings,
-    channels,
-    partners,
-    assets,
-    fixedCosts,
-    supplies,
-    products,
-    recipeItems,
-    productionRuns,
-    sales,
-    purchases,
-    partnerMovements,
-    quotes,
-    quoteItems,
-    filamentRolls,
-  };
 });
 
-async function fetchAll() {
-  const [
-    settingsRows,
-    channels,
-    partners,
-    assets,
-    fixedCosts,
-    supplies,
-    products,
-    recipeItems,
-    productionRuns,
-    sales,
-    purchases,
-    partnerMovements,
-    quotes,
-    quoteItems,
-    filamentRolls,
-  ] = await Promise.all([
-    db.select().from(schema.settings),
-    db.select().from(schema.channels).orderBy(schema.channels.id),
-    db.select().from(schema.partners).orderBy(schema.partners.id),
-    db.select().from(schema.assets).orderBy(schema.assets.code),
-    db.select().from(schema.fixedCosts).orderBy(schema.fixedCosts.id),
-    db.select().from(schema.supplies).orderBy(schema.supplies.code),
-    db.select().from(schema.products).orderBy(schema.products.code),
-    db.select().from(schema.recipeItems).orderBy(schema.recipeItems.id),
-    db.select().from(schema.productionRuns),
-    db.select().from(schema.sales),
-    db.select().from(schema.purchases),
-    db.select().from(schema.partnerMovements),
-    db.select().from(schema.quotes).orderBy(schema.quotes.id),
-    db.select().from(schema.quoteItems).orderBy(schema.quoteItems.id),
-    db.select().from(schema.filamentRolls).orderBy(schema.filamentRolls.id),
-  ]);
-
-  return {
-    settingsRows,
-    channels,
-    partners,
-    assets,
-    fixedCosts,
-    supplies,
-    products,
-    recipeItems,
-    productionRuns,
-    sales,
-    purchases,
-    partnerMovements,
-    quotes,
-    quoteItems,
-    filamentRolls,
-  };
+/** La forma del estado. Tiene que coincidir con lo que devuelve el backend. */
+export interface AllData {
+  settings: Settings;
+  channels: Channel[];
+  partners: Partner[];
+  assets: Asset[];
+  fixedCosts: typeof schema.fixedCosts.$inferSelect[];
+  supplies: Supply[];
+  products: Product[];
+  recipeItems: RecipeItem[];
+  productionRuns: ProductionRun[];
+  sales: Sale[];
+  purchases: typeof schema.purchases.$inferSelect[];
+  partnerMovements: typeof schema.partnerMovements.$inferSelect[];
+  quotes: typeof schema.quotes.$inferSelect[];
+  quoteItems: QuoteItem[];
+  filamentRolls: FilamentRoll[];
 }
-export type AllData = Awaited<ReturnType<typeof loadAll>>;
 
 // ── Insumos ──────────────────────────────────────────────────────────
 export function unitCost(s: Supply): number {

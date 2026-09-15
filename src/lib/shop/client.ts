@@ -96,6 +96,14 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * Estado completo de la contabilidad. Reemplaza la consulta directa que hacía
+ * `loadAll()`: la forma es idéntica, así las páginas no cambian.
+ */
+export function getEstado<T>(): Promise<T> {
+  return call<T>("/state");
+}
+
 /** Catálogo completo de la tienda, borradores incluidos. */
 export function getListings() {
   return call<ListingTienda[]>("/catalog");
