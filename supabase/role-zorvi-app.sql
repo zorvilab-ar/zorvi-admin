@@ -34,18 +34,46 @@
 begin;
 
 -- ── Rol ──────────────────────────────────────────────────────────────
+-- `create role ... login` ya deja el rol como lo queremos: nosuperuser,
+-- nocreatedb y nocreaterole son los valores por defecto.
+--
+-- Importante: NO agregues `alter role zorvi_app nosuperuser ...`. En Postgres,
+-- *mencionar* SUPERUSER en un ALTER ROLE exige ser superusuario aunque lo
+-- estés poniendo en "no", y el rol `postgres` de Supabase no lo es. Falla con
+-- «permission denied to alter role». Lo mismo con NOCREATEDB.
 do $$
+declare r record;
 begin
   if not exists (select 1 from pg_roles where rolname = 'zorvi_app') then
     create role zorvi_app login;
+  end if;
+
+  -- Si el rol ya existía de antes, frenamos acá en vez de seguir y darle
+  -- permisos a un rol con más atributos de los que debería tener.
+  select rolsuper, rolcreatedb, rolcreaterole into r
+    from pg_roles where rolname = 'zorvi_app';
+  if r.rolsuper or r.rolcreatedb or r.rolcreaterole then
+    raise exception
+      'zorvi_app ya existe con atributos de más (superuser=%, createdb=%, createrole=%). Quitáselos con un rol que pueda, o borrá el rol y volvé a correr este script.',
+      r.rolsuper, r.rolcreatedb, r.rolcreaterole;
   end if;
 end $$;
 
 --                                    ↓↓↓ cambiá esto ↓↓↓
 alter role zorvi_app with password 'PONE_UNA_PASSWORD_LARGA_ACA';
 
--- Sin DDL: puede tocar los datos, no la forma de la base.
-alter role zorvi_app nosuperuser nocreatedb nocreaterole;
+-- Permite probar el rol con `set role` desde el SQL Editor (PASO 2).
+-- Desde Postgres 16, el rol que crea otro recibe ADMIN pero NO SET, así que
+-- sin esto el `set role zorvi_app` de la verificación da permission denied.
+-- No es una escalada: quien corre esto ya es dueño de todas las tablas.
+do $$
+begin
+  execute format('grant zorvi_app to %I with set true', current_user);
+exception when others then
+  -- Postgres 15 y anteriores: no existe la opción SET y la membresía sola
+  -- ya habilita `set role`.
+  execute format('grant zorvi_app to %I', current_user);
+end $$;
 
 -- ── Permisos sobre los datos ─────────────────────────────────────────
 grant usage on schema public to zorvi_app;
@@ -87,6 +115,12 @@ commit;
 -- denied, NO cambies la URL todavía.
 --
 --   set role zorvi_app;
+--
+--   -- ⚠️ MIRÁ ESTO PRIMERO. Si no dice zorvi_app, el `set role` falló y
+--   --    todo lo de abajo lo estás corriendo como dueño: el create table
+--   --    va a "pasar" y vas a creer que el rol quedó mal.
+--   select current_user;                    -- espera: zorvi_app
+--
 --   select count(*) from settings;          -- espera 1
 --   select count(*) from products;          -- espera tus productos
 --   insert into partner_movements (date, partner_id, type, amount_ars)
@@ -95,8 +129,8 @@ commit;
 --   create table prueba_ddl (id int);       -- espera: permission denied  ✅
 --   reset role;
 --
--- El `create table` TIENE que fallar. Si funciona, el rol quedó con más
--- permisos de los que debería.
+-- El `create table` TIENE que fallar. Si funciona, o el rol quedó con más
+-- permisos de los que debería, o el `set role` no surtió efecto.
 
 -- ════════════════════════════════════════════════════════════════════
 -- PASO 3 — Variables de entorno
