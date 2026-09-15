@@ -1,4 +1,4 @@
-import { loadAll, partnerAccounts } from "@/lib/calc";
+import { loadSocios } from "@/lib/views/client";
 import {
   createPartnerMovement,
   updatePartnerMovement,
@@ -23,10 +23,8 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function SociosPage() {
-  const data = await loadAll();
-  const accounts = partnerAccounts(data);
-  const partnersById = new Map(data.partners.map((p) => [p.id, p]));
-  const movements = [...data.partnerMovements].sort((a, b) => b.date.localeCompare(a.date));
+  const { cuentas: accounts, movimientos, socios } = await loadSocios();
+  const movements = [...movimientos].sort((a, b) => b.date.localeCompare(a.date));
   const today = new Date().toISOString().slice(0, 10);
 
   const totalIn = accounts.reduce((a, x) => a + x.contributions, 0);
@@ -40,7 +38,7 @@ export default async function SociosPage() {
         name="partnerId"
         label="Socio"
         defaultValue={m?.partnerId}
-        options={data.partners.map((p) => ({ value: p.id, label: p.name }))}
+        options={socios.map((p) => ({ value: p.id, label: p.name }))}
         placeholder="¿Quién?"
         required
       />
@@ -96,8 +94,8 @@ export default async function SociosPage() {
             </TableHeader>
             <TableBody>
               {accounts.map((a) => (
-                <TableRow key={a.partner.id}>
-                  <TableCell className="font-bold">{a.partner.name}</TableCell>
+                <TableRow key={a.id}>
+                  <TableCell className="font-bold">{a.name}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtArs(a.contributions)}</TableCell>
                   <TableCell className="text-right tabular-nums">{fmtArs(a.withdrawals)}</TableCell>
                   <TableCell className="text-right font-bold tabular-nums">{fmtArs(a.balance)}</TableCell>
@@ -151,7 +149,7 @@ export default async function SociosPage() {
                 {movements.map((m) => (
                   <TableRow key={m.id}>
                     <TableCell className="text-xs">{fmtDate(m.date)}</TableCell>
-                    <TableCell className="font-bold">{partnersById.get(m.partnerId)?.name}</TableCell>
+                    <TableCell className="font-bold">{m.partnerName}</TableCell>
                     <TableCell>
                       <Badge className={`text-[11px] ${m.type === "Aporte" ? "bg-[#7AA37A] text-white" : "bg-primary text-primary-foreground"}`}>
                         {m.type}
@@ -184,7 +182,7 @@ export default async function SociosPage() {
                       <ConfirmDelete
                         action={deletePartnerMovement}
                         id={m.id}
-                        what={`el ${m.type.toLowerCase()} de ${partnersById.get(m.partnerId)?.name} (${fmtArs(m.amountArs)})`}
+                        what={`el ${m.type.toLowerCase()} de ${m.partnerName} (${fmtArs(m.amountArs)})`}
                       />
                     </TableCell>
                   </TableRow>

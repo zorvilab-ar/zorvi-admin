@@ -1,33 +1,13 @@
-import {
-  loadAll,
-  filamentPricePerKg,
-  mercadoLibreChannel,
-  assetAmortPerHour,
-  printerAssets,
-} from "@/lib/calc";
+import { loadCalculadora } from "@/lib/views/client";
 import { PageHeader } from "@/components/shared";
 import { CalculatorForm } from "./calculator-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function CalculadoraPage() {
-  const data = await loadAll();
-  const filaments = data.supplies
-    .filter((s) => s.category === "Filamento")
-    .map((s) => ({
-      id: s.id,
-      name: `${s.code} — ${s.name}`,
-      pricePerKg: filamentPricePerKg(s),
-    }));
-  // Solo impresoras: el desgaste por hora de impresión es de la máquina que imprime.
-  const assets = printerAssets(data.assets).map((a) => ({
-    id: a.id,
-    name: `${a.code} — ${a.name}`,
-    amortPerHour: assetAmortPerHour(a),
-    usefulLifeHours: a.usefulLifeHours,
-    costArs: a.costArs,
-  }));
-  const ml = mercadoLibreChannel(data.channels);
+  // El backend ya filtra impresoras y calcula precio del kilo y desgaste.
+  const { filamentos: filaments, impresoras: assets, settings, marketCommission, marketFixed } =
+    await loadCalculadora();
 
   return (
     <div>
@@ -38,14 +18,14 @@ export default async function CalculadoraPage() {
       <CalculatorForm
         filaments={filaments}
         assets={assets}
-        printerWatts={data.settings.printerWatts}
-        kwhPrice={data.settings.kwhPrice}
-        failureRate={data.settings.failureRate}
-        targetMargin={data.settings.targetMargin}
-        assemblyRate={data.settings.assemblyRate}
-        designRate={data.settings.designRate}
-        marketCommission={ml?.commission ?? 0.13}
-        marketFixed={ml?.fixedCost ?? 0}
+        printerWatts={settings.printerWatts}
+        kwhPrice={settings.kwhPrice}
+        failureRate={settings.failureRate}
+        targetMargin={settings.targetMargin}
+        assemblyRate={settings.assemblyRate}
+        designRate={settings.designRate}
+        marketCommission={marketCommission}
+        marketFixed={marketFixed}
       />
     </div>
   );

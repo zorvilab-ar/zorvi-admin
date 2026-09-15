@@ -1,4 +1,4 @@
-import { loadAll } from "@/lib/calc";
+import { loadCostosFijos } from "@/lib/views/client";
 import { createFixedCost, updateFixedCost, deleteFixedCost } from "@/lib/actions";
 import { fmtArs, fmtUsd } from "@/lib/format";
 import { PageHeader, Kpi, EmptyState } from "@/components/shared";
@@ -38,9 +38,9 @@ function FixedCostFields({
 }
 
 export default async function CostosFijosPage() {
-  const data = await loadAll();
-  const total = data.fixedCosts.reduce((a, f) => a + f.monthlyArs, 0);
-  const perHour = data.settings.hoursProductive > 0 ? total / data.settings.hoursProductive : 0;
+  const { costos, settings } = await loadCostosFijos();
+  const total = costos.reduce((a, f) => a + f.monthlyArs, 0);
+  const perHour = settings.hoursProductive > 0 ? total / settings.hoursProductive : 0;
 
   const addSheet = (
     <FormSheet
@@ -63,15 +63,15 @@ export default async function CostosFijosPage() {
       />
 
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Kpi label="Total mensual" value={fmtArs(total)} hint={fmtUsd(data.settings.fxRate > 0 ? total / data.settings.fxRate : 0)} />
+        <Kpi label="Total mensual" value={fmtArs(total)} hint={fmtUsd(settings.fxRate > 0 ? total / settings.fxRate : 0)} />
         <Kpi
           label="Costo fijo por hora productiva"
           value={fmtArs(perHour)}
-          hint={`Sobre ${data.settings.hoursProductive} h productivas — se reparte solo en cada lámpara`}
+          hint={`Sobre ${settings.hoursProductive} h productivas — se reparte solo en cada lámpara`}
         />
       </div>
 
-      {data.fixedCosts.length === 0 ? (
+      {costos.length === 0 ? (
         <EmptyState
           title="Todavía no hay costos fijos"
           helper="Cargá lo que pagan todos los meses (espacio, monotributo, software) para conocer el punto de equilibrio."
@@ -91,7 +91,7 @@ export default async function CostosFijosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.fixedCosts.map((f) => (
+                {costos.map((f) => (
                   <TableRow key={f.id}>
                     <TableCell className="font-bold">{f.concept}</TableCell>
                     <TableCell className="text-xs font-semibold">{f.category}</TableCell>

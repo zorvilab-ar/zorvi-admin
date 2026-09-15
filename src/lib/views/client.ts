@@ -84,3 +84,96 @@ export interface VistaResumen {
   settings: { startDate: string };
 }
 export const loadResumen = cache(() => vista<VistaResumen>("resumen"));
+
+// ── Catálogo y configuración ─────────────────────────────────────────
+type Insumo = {
+  id: number; code: string; name: string; category: string; unit: string;
+  purchasePrice: number; packQty: number; supplier: string | null;
+  updatedAt: string | null; initialStock: number; manualAdjust: number;
+  reorderPoint: number; notes: string | null; unitCost: number;
+};
+export const loadInsumos = cache(() => vista<{ insumos: Insumo[] }>("insumos"));
+
+type Activo = {
+  id: number; code: string; name: string; type: string;
+  purchaseDate: string | null; costArs: number; usefulLifeHours: number;
+  residualArs: number; notes: string | null;
+  amortPerHour: number; hoursUsed: number; bookValue: number;
+};
+export const loadActivos = cache(() =>
+  vista<{
+    activos: Activo[];
+    amortTotalPorHora: number;
+    socios: { id: number; name: string }[];
+    settings: { fxRate: number };
+  }>("activos"),
+);
+
+type CostoFijo = {
+  id: number; concept: string; category: string; monthlyArs: number; notes: string | null;
+};
+export const loadCostosFijos = cache(() =>
+  vista<{ costos: CostoFijo[]; settings: { hoursProductive: number; fxRate: number } }>("costos-fijos"),
+);
+
+export interface Settings {
+  id: number; businessName: string; startDate: string; fxRate: number;
+  fxDate: string | null; printerWatts: number; kwhPrice: number;
+  hoursAvailable: number; hoursProductive: number; failureRate: number;
+  defaultWaste: number; assemblyRate: number; designRate: number;
+  targetMargin: number; wholesaleDiscount: number; iibbRate: number;
+  otherTaxRate: number; billingPartner: string | null;
+  monotributoCategory: string | null; monotributoCap: number; reinvestPercent: number;
+}
+export const loadParametros = cache(() =>
+  vista<{
+    settings: Settings;
+    canales: { id: number; name: string; commission: number; fixedCost: number; notes: string | null }[];
+  }>("parametros"),
+);
+
+// ── Uso diario ───────────────────────────────────────────────────────
+type Compra = {
+  id: number; date: string; supplier: string | null; type: string;
+  category: string | null; detail: string | null; supplyId: number | null;
+  qty: number; amountArs: number; paymentMethod: string | null;
+  paidBy: string | null; status: string; paymentDate: string | null;
+  receipt: string | null; notes: string | null; supplyCode: string | null;
+};
+export const loadCompras = cache(() =>
+  vista<{
+    compras: Compra[];
+    insumos: { id: number; code: string; name: string; unit: string; purchasePrice: number; packQty: number }[];
+    socios: string[];
+    conAporte: number[];
+  }>("compras"),
+);
+
+type Movimiento = {
+  id: number; date: string; partnerId: number; type: string; amountArs: number;
+  paymentMethod: string | null; purchaseId: number | null; notes: string | null;
+  partnerName: string | null;
+};
+export const loadSocios = cache(() =>
+  vista<{
+    cuentas: {
+      id: number; name: string; contributions: number; withdrawals: number;
+      balance: number; capitalPct: number; diffVsEqual: number;
+    }[];
+    movimientos: Movimiento[];
+    socios: { id: number; name: string }[];
+  }>("socios"),
+);
+
+export const loadCalculadora = cache(() =>
+  vista<{
+    filamentos: { id: number; name: string; pricePerKg: number }[];
+    impresoras: { id: number; name: string; amortPerHour: number; usefulLifeHours: number; costArs: number }[];
+    settings: {
+      printerWatts: number; kwhPrice: number; failureRate: number;
+      targetMargin: number; assemblyRate: number; designRate: number;
+    };
+    marketCommission: number;
+    marketFixed: number;
+  }>("calculadora"),
+);

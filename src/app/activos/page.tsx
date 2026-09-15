@@ -1,4 +1,4 @@
-import { loadAll, assetAmortPerHour, assetHoursUsed, totalAmortPerHour } from "@/lib/calc";
+import { loadActivos } from "@/lib/views/client";
 import { createAsset, updateAsset, deleteAsset } from "@/lib/actions";
 import { fmtArs, fmtArsDec, fmtNum, fmtUsd, fmtDate } from "@/lib/format";
 import { PageHeader, Kpi, EmptyState } from "@/components/shared";
@@ -87,11 +87,12 @@ function AssetFields({
 }
 
 export default async function ActivosPage() {
-  const data = await loadAll();
+  // Amortización, horas usadas y valor libro vienen calculados del backend.
+  const { activos, amortTotalPorHora, socios, settings } = await loadActivos();
 
-  const totalInvest = data.assets.reduce((a, x) => a + x.costArs, 0);
-  const bookValue = data.assets.reduce(
-    (a, x) => a + (x.costArs - assetAmortPerHour(x) * assetHoursUsed(x, data.productionRuns)),
+  const totalInvest = activos.reduce((a, x) => a + x.costArs, 0);
+  const bookValue = activos.reduce(
+    (a, x) => a + x.bookValue,
     0,
   );
 
@@ -104,7 +105,7 @@ export default async function ActivosPage() {
       successMessage="Activo agregado"
       wide
     >
-      <AssetFields partners={data.partners} />
+      <AssetFields partners={socios} />
     </FormSheet>
   );
 
@@ -117,16 +118,16 @@ export default async function ActivosPage() {
       />
 
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Kpi label="Inversión total" value={fmtArs(totalInvest)} hint={fmtUsd(data.settings.fxRate > 0 ? totalInvest / data.settings.fxRate : 0)} />
+        <Kpi label="Inversión total" value={fmtArs(totalInvest)} hint={fmtUsd(settings.fxRate > 0 ? totalInvest / settings.fxRate : 0)} />
         <Kpi label="Valor libro actual" value={fmtArs(bookValue)} hint="Lo que valen hoy, ya descontado el uso" />
         <Kpi
           label="Amortización por hora"
-          value={fmtArsDec(totalAmortPerHour(data.assets))}
+          value={fmtArsDec(amortTotalPorHora)}
           hint="Se suma sola al costo de cada lámpara. Solo cuentan las impresoras."
         />
       </div>
 
-      {data.assets.length === 0 ? (
+      {activos.length === 0 ? (
         <EmptyState
           title="Todavía no hay activos"
           helper="Cargá la impresora y las herramientas para que su desgaste entre en el costo de cada lámpara."
@@ -151,9 +152,9 @@ export default async function ActivosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.assets.map((a) => {
-                  const amort = assetAmortPerHour(a);
-                  const used = assetHoursUsed(a, data.productionRuns);
+                {activos.map((a) => {
+                  const amort = a.amortPerHour;
+                  const used = a.hoursUsed;
                   return (
                     <TableRow key={a.id}>
                       <TableCell className="font-mono text-xs">{a.code}</TableCell>

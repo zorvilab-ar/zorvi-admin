@@ -1,4 +1,4 @@
-import { loadAll } from "@/lib/calc";
+import { loadParametros } from "@/lib/views/client";
 import { updateSettings, updateChannel } from "@/lib/actions";
 import { fmtPct, fmtArs } from "@/lib/format";
 import { PageHeader, SectionTitle } from "@/components/shared";
@@ -18,7 +18,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function ParametrosPage() {
-  const { settings: st, channels } = await loadAll();
+  const { settings: st, canales: channels } = await loadParametros();
 
   return (
     <div>

@@ -1,4 +1,4 @@
-import { loadAll } from "@/lib/calc";
+import { loadCompras } from "@/lib/views/client";
 import {
   createPurchase,
   updatePurchase,
@@ -32,27 +32,17 @@ const TYPE_STYLE: Record<string, string> = {
 };
 
 export default async function ComprasPage() {
-  const data = await loadAll();
-  const suppliesById = new Map(data.supplies.map((s) => [s.id, s]));
-  const purchases = [...data.purchases].sort((a, b) => b.date.localeCompare(a.date));
+  const { compras, insumos, socios, conAporte } = await loadCompras();
+  const purchases = [...compras].sort((a, b) => b.date.localeCompare(a.date));
   const today = new Date().toISOString().slice(0, 10);
 
   const total = purchases.reduce((a, p) => a + p.amountArs, 0);
   const pendingTotal = purchases.filter((p) => p.status === "Pendiente").reduce((a, p) => a + p.amountArs, 0);
 
-  const supplyOptions = data.supplies.map((s) => ({
-    id: s.id,
-    code: s.code,
-    name: s.name,
-    unit: s.unit,
-    purchasePrice: s.purchasePrice,
-    packQty: s.packQty,
-  }));
-  const partnerNames = data.partners.map((p) => p.name);
+  const supplyOptions = insumos;
+  const partnerNames = socios;
   // Compras que ya generaron el aporte del socio: el checkbox arranca tildado.
-  const withContribution = new Set(
-    data.partnerMovements.map((m) => m.purchaseId).filter(Boolean) as number[],
-  );
+  const withContribution = new Set(conAporte);
 
   const addSheet = (
     <FormSheet
@@ -122,7 +112,7 @@ export default async function ComprasPage() {
                       <Badge className={`text-[11px] ${TYPE_STYLE[p.type]}`}>{p.type}</Badge>
                     </TableCell>
                     <TableCell className="text-xs font-semibold">{p.detail ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-xs">{p.supplyId ? suppliesById.get(p.supplyId)?.code : "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{p.supplyCode ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums">{p.qty > 0 ? fmtNum(p.qty) : "—"}</TableCell>
                     <TableCell className="text-right font-bold tabular-nums">{fmtArs(p.amountArs)}</TableCell>
                     <TableCell className="text-xs font-semibold">{p.paidBy ?? "—"}</TableCell>

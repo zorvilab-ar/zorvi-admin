@@ -1,4 +1,4 @@
-import { loadAll, unitCost } from "@/lib/calc";
+import { loadInsumos } from "@/lib/views/client";
 import { createSupply, updateSupply, deleteSupply } from "@/lib/actions";
 import { fmtArs, fmtArsDec, fmtNum, fmtDate } from "@/lib/format";
 import { PageHeader, EmptyState } from "@/components/shared";
@@ -63,7 +63,7 @@ function SupplyFields({ s }: { s?: Supply }) {
 }
 
 export default async function InsumosPage() {
-  const data = await loadAll();
+  const { insumos } = await loadInsumos();
 
   const addSheet = (
     <FormSheet
@@ -86,7 +86,7 @@ export default async function InsumosPage() {
         actions={addSheet}
       />
 
-      {data.supplies.length === 0 ? (
+      {insumos.length === 0 ? (
         <EmptyState
           title="Todavía no hay insumos"
           helper="Cargá los filamentos, portalámparas y cajas con su precio de compra. Con eso se arma el costo de cada lámpara."
@@ -110,7 +110,7 @@ export default async function InsumosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.supplies.map((s) => (
+                {insumos.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-mono text-xs">{s.code}</TableCell>
                     <TableCell className="font-bold">{s.name}</TableCell>
@@ -122,7 +122,7 @@ export default async function InsumosPage() {
                       {fmtNum(s.packQty)} {s.unit}
                     </TableCell>
                     <TableCell className="text-right font-bold tabular-nums">
-                      {fmtArsDec(unitCost(s))}/{s.unit}
+                      {fmtArsDec(s.unitCost)}/{s.unit}
                     </TableCell>
                     <TableCell className="text-xs font-semibold">{s.supplier}</TableCell>
                     <TableCell className="text-xs">{fmtDate(s.updatedAt)}</TableCell>
