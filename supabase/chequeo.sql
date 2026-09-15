@@ -8,7 +8,7 @@
 select * from (
 
   -- ── 1. Migración de los hallazgos de QA ────────────────────────────
-  select 1 as orden,
+  select 1::numeric as orden,
     'Columnas de qa-fixes.sql' as chequeo,
     case when count(*) = 4 then 'OK'
          else 'FALTA -> corré supabase/qa-fixes.sql' end as estado,
@@ -61,6 +61,28 @@ select * from (
     || ' tablas'
 
   -- ── 3. Candado de seguridad de setup.sql ───────────────────────────
+  -- ── 2b. Integridad a nivel motor (§3.1) ───────────────────────────
+  union all
+  select 5.5,
+    'CHECK constraints (§3.1)',
+    case when count(*) >= 27 then 'OK'
+         else 'FALTA -> corré supabase/constraints-indexes.sql' end,
+    count(*)::text || ' de 27'
+  from pg_constraint c
+  join pg_class t on t.oid = c.conrelid
+  join pg_namespace n on n.oid = t.relnamespace
+  where n.nspname = 'public' and c.contype = 'c'
+    and c.conname not like '%not_null%'
+
+  union all
+  select 5.6,
+    'Índices de filtro y orden (§3.1)',
+    case when count(*) >= 15 then 'OK'
+         else 'FALTA -> corré supabase/constraints-indexes.sql' end,
+    count(*)::text || ' de 15'
+  from pg_indexes
+  where schemaname = 'public' and indexname like '%\_idx'
+
   union all
   select 6,
     'RLS activo en todas las tablas',
