@@ -37,13 +37,17 @@ disponible para usuarios logueados (`authenticated`).
 - [ ] **Repo en privado** (el historial de git todavía tiene los valores viejos).
 - [ ] **Desactivar signup público** en Supabase → Authentication → Providers (si no, un atacante se autoregistra y la policy `using(true)` de `sales` le deja leer todas las ventas).
 
-### 1.3 Rol de aplicación sin DDL — **LISTO PARA APLICAR** (2026-09-15)
+### 1.3 Rol de aplicación sin DDL — **APLICADO EN PROD ✅** (2026-09-15)
+> Falta el último paso: cambiar las variables de entorno en Vercel
+> (`DATABASE_URL` → `zorvi_app`, `DIRECT_URL` → `postgres`). Hasta que eso pase,
+> la app sigue conectándose como `postgres` y el rol no hace nada.
 Hoy la app se conecta como `postgres`: dueño de las tablas, con DDL y bypass de RLS.
 - [x] `supabase/role-zorvi-app.sql` — crea `zorvi_app` (select/insert/update/delete, **sin** DDL), con las policies de RLS que un rol no-dueño necesita, verificación previa y rollback.
 - [x] **Probado contra Postgres 17 con el RLS de `setup.sql` puesto, y desde un rol dueño SIN atributo superusuario** — que es la situación real de Supabase, distinta del Docker local (donde `zorvi` sí es superusuario y por eso la primera versión del script pasó acá y falló en prod). Verificado: lee y escribe las 15 tablas, `create table` / `drop table` / `alter table` fallan, `anon` sigue con `permission denied`, `authenticated` conserva solo el SELECT de `sales` para el realtime, y Drizzle conecta y hace transacciones con ese rol.
 - [x] Dos cosas que solo aparecen con un dueño no-superusuario y ya están resueltas en el script: mencionar `NOSUPERUSER` en un `ALTER ROLE` exige ser superusuario aunque lo pongas en "no" (se sacó: `create role ... login` ya deja los atributos bien), y desde Postgres 16 el rol que crea otro recibe ADMIN pero **no** SET, así que el `set role` de la verificación necesita un `grant ... with set true`.
 - [x] ⚠️ Confirmado el modo de falla que hay que evitar: un rol con grants pero **sin** las policies no da error — devuelve **0 filas**. La app se vería con todas las tablas vacías, como si se hubieran borrado los datos. Por eso las policies no son opcionales.
-- [ ] **Correr en el SQL Editor** y dejar en Vercel `DATABASE_URL` → `zorvi_app` y `DIRECT_URL` → `postgres` (solo para `db:push`). No hace falta tocar código: `drizzle.config.ts` ya prioriza `DIRECT_URL`.
+- [x] **Corrido en el SQL Editor** (2026-09-15).
+- [ ] Dejar en Vercel `DATABASE_URL` → `zorvi_app` y `DIRECT_URL` → `postgres` (solo para `db:push`). No hace falta tocar código: `drizzle.config.ts` ya prioriza `DIRECT_URL`.
 - Es además el primer paso de la separación admin / tienda: cada servicio con su rol sobre su schema.
 
 ### 1.4 TLS de la conexión a la DB — **PENDIENTE**
