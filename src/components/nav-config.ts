@@ -15,6 +15,7 @@ import {
   BarChart3,
   Calculator,
   FileText,
+  Store,
 } from "lucide-react";
 
 export const NAV_GROUPS: {
@@ -46,6 +47,7 @@ export const NAV_GROUPS: {
       { href: "/productos", label: "Productos", icon: Lamp },
       { href: "/insumos", label: "Insumos", icon: Package },
       { href: "/precios", label: "Precios por canal", icon: Tags },
+      { href: "/tienda", label: "Tienda", icon: Store },
     ],
   },
   {

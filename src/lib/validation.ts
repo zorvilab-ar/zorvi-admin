@@ -384,4 +384,41 @@ export const filamentRollUpdateSchema = z.object({
   notes: fdText,
 });
 
+/**
+ * Ficha de venta de un producto: lo que ve el comprador en la tienda.
+ * Vive en zorvi-backend, no en esta base — acá solo se valida el formulario
+ * antes de mandarlo por HTTP.
+ */
+export const shopListingSchema = z.object({
+  code: fdReqText("El código"),
+  slug: z.preprocess(
+    (v) => String(v ?? "").trim().toLowerCase(),
+    z.string().regex(/^[a-z0-9-]+$/, "El slug va en minúsculas, números y guiones"),
+  ),
+  name: fdReqText("El nombre"),
+  subtitle: fdText,
+  description: fdText,
+  care: fdText,
+  category: fdEnum(["lamparas", "deco-hogar", "cocina", "llaveros"], {
+    def: "lamparas",
+    label: "La categoría",
+  }),
+  badge: fdText,
+  image: fdText,
+  lampType: fdText,
+  availability: fdEnum(["stock", "on-demand"], {
+    def: "on-demand",
+    label: "La disponibilidad",
+  }),
+  engravingLabel: fdText,
+  engravingExtra: fdNumber(),
+  published: fdCheckbox,
+  sortOrder: fdNumber(),
+  /** Una por línea: "Mediana · 22 cm | 0" */
+  sizesRaw: fdText,
+  /** Una por línea: "Negro | #3B2A22" */
+  colorsRaw: fdText,
+});
+export type ShopListingInput = z.infer<typeof shopListingSchema>;
+
 export { idOnly };
