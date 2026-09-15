@@ -1,5 +1,7 @@
 # Zorvi Admin
 
+[![CI](https://github.com/zorvilab-ar/zorvi-admin/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/zorvilab-ar/zorvi-admin/actions/workflows/ci.yml)
+
 Admin de contabilidad y costos para **Zorvi Lab** (lámparas 3D). Reemplaza el
 `Libro_Contabilidad_Lamparas_3D.xlsx`: todas las fórmulas del Excel se calculan
 solas. Usa el sistema de diseño de la tienda Zorvi (crema/tinta/rojo, Lilita
@@ -24,6 +26,19 @@ make reset    # ⚠ borra TODO y vuelve al seed inicial (pide confirmación)
 make logs     # logs de Postgres
 make studio   # explorar la base con Drizzle Studio
 ```
+
+## Verificar antes de pushear
+
+```bash
+pnpm test         # 50 tests sobre calc.ts y print-cost.ts
+pnpm test:watch   # mientras tocás los cálculos
+pnpm lint
+pnpm exec tsc --noEmit
+```
+
+Los mismos cuatro pasos (más `pnpm build`) corren en GitHub Actions en cada
+push a `main`/`develop` y en cada PR. El `build` está porque es lo único que
+detecta que un componente cruzó mal el límite server/client.
 
 ## Base de datos y auth
 
