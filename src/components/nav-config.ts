@@ -9,6 +9,7 @@ import {
   Tags,
   Factory,
   ShoppingCart,
+  Inbox,
   Receipt,
   Users,
   Boxes,
@@ -34,6 +35,7 @@ export const NAV_GROUPS: {
     label: "Uso diario",
     items: [
       { href: "/ventas", label: "Ventas", icon: ShoppingCart },
+      { href: "/pedidos-web", label: "Pedidos web", icon: Inbox },
       { href: "/calculadora", label: "Calculadora 3D", icon: Calculator },
       { href: "/presupuestos", label: "Presupuestos", icon: FileText },
       { href: "/produccion", label: "Producción", icon: Factory },
