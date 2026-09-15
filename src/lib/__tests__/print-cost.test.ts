@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import { customPrintCost } from "@/lib/print-cost";
 
 /**
- * Costeo de piezas a medida: la calculadora y los ítems de presupuesto.
+ * Costeo de piezas a medida, del lado del admin.
+ *
+ * `print-cost.ts` es una copia deliberada de la del backend: la calculadora
+ * recalcula en cada tecla y hacer eso por HTTP sería una llamada por
+ * pulsación. Esta suite existe para que la copia no derive — si alguien toca
+ * la fórmula de un lado y no del otro, acá falla.
  * Los valores base son los de Parámetros (filamento a 19.990 el kilo, 100 W,
  * 200 $/kWh, 15% de fallas, 45% de margen, desgaste de la Bambu a 293 $/h).
  */

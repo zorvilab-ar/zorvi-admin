@@ -1,4 +1,5 @@
 import "server-only";
+import { ValidationError } from "@/lib/validation-error";
 
 /**
  * Cliente del backend de la tienda (`zorvi-backend`).
@@ -86,11 +87,28 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     if (res.status === 401) {
-      throw new ShopError("La tienda rechazó la credencial (SHOP_INTERNAL_KEY).");
+      throw new ShopError("El backend rechazó la credencial (SHOP_INTERNAL_KEY).");
     }
-    const detalle = await res.text().catch(() => "");
+
+    const cuerpo = (await res.json().catch(() => null)) as
+      | { message?: string | string[]; validacion?: boolean; detalles?: { campo: string; problema: string }[] }
+      | null;
+
+    // Un 400 de validación no es un problema de infraestructura: es el usuario
+    // que cargó algo mal. Se convierte en ValidationError para que el toast
+    // muestre el mensaje concreto en vez de "no se pudo guardar".
+    if (res.status === 400 && cuerpo) {
+      const detalle =
+        cuerpo.detalles?.map((d) => `${d.problema} (${d.campo})`).join(", ") ??
+        (Array.isArray(cuerpo.message) ? cuerpo.message.join(", ") : cuerpo.message);
+      throw new ValidationError(detalle || "Datos inválidos");
+    }
+
+    const texto = Array.isArray(cuerpo?.message)
+      ? cuerpo.message.join(", ")
+      : cuerpo?.message;
     throw new ShopError(
-      `La tienda respondió ${res.status}. ${detalle.slice(0, 200)}`,
+      `El backend respondió ${res.status}${texto ? `: ${texto}` : "."}`,
     );
   }
   return res.json() as Promise<T>;
@@ -102,6 +120,18 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
  */
 export function getEstado<T>(): Promise<T> {
   return call<T>("/state");
+}
+
+/**
+ * Ejecuta una mutación en el backend. El nombre es el de la action y el
+ * cuerpo son las entradas del formulario tal cual: la validación la hace el
+ * dueño de los datos, no este lado.
+ */
+export async function ejecutarAccion(nombre: string, datos: Record<string, string>) {
+  return call<unknown>(`/actions/${nombre}`, {
+    method: "POST",
+    body: JSON.stringify(datos),
+  });
 }
 
 /** Una vista ya calculada: `dashboard`, `stock`, `resumen`… */
@@ -127,13 +157,13 @@ export function getPedidosPendientes() {
   return call<PedidoWeb[]>("/orders/pending");
 }
 
-/** Avisa que esos pedidos ya son ventas y manda el stock fresco. */
-export function postPedidosImportados(
-  numbers: string[],
-  stock: { code: string; disponible: number }[],
-) {
-  return call<{ importados: string[]; stockActualizado: number }>(
-    "/orders/imported",
-    { method: "POST", body: JSON.stringify({ numbers, stock }) },
-  );
+/**
+ * Convierte esos pedidos en ventas. El backend lo hace en una transacción:
+ * asienta las ventas, libera las reservas y republica el stock.
+ */
+export function postPedidosImportados(numbers: string[]) {
+  return call<{ importados: string[]; ventas: number }>("/orders/import", {
+    method: "POST",
+    body: JSON.stringify({ numbers }),
+  });
 }

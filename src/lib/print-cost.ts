@@ -1,3 +1,14 @@
+/**
+ * Copia deliberada de la del backend.
+ *
+ * La calculadora recalcula en cada tecla que se toca: gramos, horas, margen.
+ * Hacer eso por HTTP sería una llamada por pulsación, así que esta cuenta
+ * corre en el navegador. Es el único cálculo que el admin conserva, y es de
+ * presentación — el costeo que vale, el de los presupuestos guardados, lo
+ * hace el backend con esta misma fórmula.
+ *
+ * Si se toca una, hay que tocar la otra. Los tests están del lado del backend.
+ */
 export interface CustomPrintCost {
   material: number;
   energy: number;

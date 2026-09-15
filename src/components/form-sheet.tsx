@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { Plus, Pencil } from "lucide-react";
 import type { VariantProps } from "class-variance-authority";
-import { dbErrorToast } from "@/lib/db/errors";
+import { errorToast } from "@/lib/errors";
 
 /**
  * Panel lateral genérico para crear o editar registros.
@@ -57,7 +57,7 @@ export function FormSheet({
         setOpen(false);
       } catch (e) {
         unstable_rethrow(e);
-        toast.error(dbErrorToast(e));
+        toast.error(errorToast(e));
         console.error(e);
       }
     });

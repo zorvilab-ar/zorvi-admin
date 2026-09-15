@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
-import { getDbStatus } from "@/lib/db/status";
+import { getBackendStatus } from "@/lib/backend-status";
 import { DbUnavailableCard } from "@/components/db-status";
 import { LinkButton } from "@/components/shared";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConexionPage() {
-  const status = await getDbStatus();
+  const status = await getBackendStatus();
   if (status.ok) redirect("/");
 
   return (

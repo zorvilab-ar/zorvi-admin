@@ -1,3 +1,4 @@
+/** Color de muestra para los rollos. Presentación pura: vive del lado del admin. */
 export const FILAMENT_COLORS = [
   { name: "Negro", hex: "#1A1A1A" },
   { name: "Blanco", hex: "#F4F0E6" },

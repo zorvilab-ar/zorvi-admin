@@ -1,7 +1,7 @@
 "use client";
 
 import { DbUnavailableCard } from "@/components/db-status";
-import { isDbConnectionError } from "@/lib/db/errors";
+import { esErrorDeConexion } from "@/lib/errors";
 
 export default function Error({
   error,
@@ -10,7 +10,7 @@ export default function Error({
   error: Error & { digest?: string };
   retry: () => void;
 }) {
-  const dbIssue = isDbConnectionError(error);
+  const dbIssue = esErrorDeConexion(error);
 
   return (
     <DbUnavailableCard
