@@ -177,3 +177,144 @@ export const loadCalculadora = cache(() =>
     marketFixed: number;
   }>("calculadora"),
 );
+
+// ── Costeo ───────────────────────────────────────────────────────────
+/** La ficha de costo de un producto, tal como la calcula el backend. */
+export interface CostoProducto {
+  filament: number; components: number; packaging: number; otherMaterials: number;
+  energy: number; amortization: number; labor: number; subtotal: number;
+  failureAdj: number; variableCost: number; fixedAllocated: number; totalCost: number;
+  suggestedPrice: number; contribution: number; contributionPct: number;
+  unitResult: number; netMarginPct: number;
+}
+
+type Producto = {
+  id: number; code: string; name: string; model: string | null; status: string;
+  printHours: number; grams: number; assemblyMinutes: number; listPrice: number;
+  initialStock: number; notes: string | null;
+};
+
+export const loadProductos = cache(() =>
+  vista<{ productos: (Producto & { stock: number; costo: CostoProducto })[] }>("productos"),
+);
+
+export const loadProducto = cache((id: number) =>
+  vista<{
+    producto: Producto;
+    costo: CostoProducto;
+    stock: number;
+    receta: {
+      id: number; productId: number; supplyId: number; qty: number;
+      wastePct: number; note: string | null;
+      supplyCode: string | null; supplyName: string | null;
+      supplyUnit: string | null; supplyCategory: string | null;
+      unitCost: number; lineCost: number;
+    }[];
+    insumos: { id: number; code: string; name: string; unit: string }[];
+    precios: {
+      channelId: number; channelName: string;
+      suggestedPrice: number; netMarginAtList: number;
+    }[];
+    settings: { targetMargin: number; defaultWaste: number };
+  } | null>(`producto/${id}`),
+);
+
+export const loadPrecios = cache(() =>
+  vista<{
+    canales: { id: number; name: string }[];
+    targetMargin: number;
+    sinComisiones: boolean;
+    bajoObjetivo: string[];
+    productos: {
+      id: number; code: string; name: string;
+      listPrice: number; variableCost: number; totalCost: number;
+      porCanal: { channelId: number; suggestedPrice: number; netMarginAtList: number }[];
+    }[];
+  }>("precios"),
+);
+
+// ── Uso diario ───────────────────────────────────────────────────────
+type Venta = {
+  id: number; date: string; receipt: string | null; customer: string | null;
+  channelId: number; productId: number; qty: number; unitPrice: number;
+  discount: number; shipping: number; paymentMethod: string | null;
+  status: string; collectionDate: string | null; invoiced: boolean; notes: string | null;
+};
+
+export const loadVentas = cache(() =>
+  vista<{
+    ventas: {
+      sale: Venta;
+      productCode: string | null; channelName: string | null;
+      totalNet: number; commission: number; netIncome: number; contribution: number;
+    }[];
+    productos: {
+      id: number; code: string; name: string;
+      listPrice: number; variableCost: number; stock: number;
+    }[];
+    canales: { id: number; name: string; commission: number; fixedCost: number }[];
+    taxRate: number;
+  }>("ventas"),
+);
+
+export const loadProduccion = cache(() =>
+  vista<{
+    tandas: {
+      id: number; date: string; productId: number; unitsOk: number; unitsFailed: number;
+      hoursReal: number; gramsReal: number; filamentSupplyId: number | null;
+      assetId: number | null; notes: string | null;
+      productCode: string | null; productName: string | null;
+      estimatedHours: number; filamentCode: string | null; assetCode: string | null;
+    }[];
+    productos: {
+      id: number; code: string; name: string;
+      printHours: number; grams: number; filamentSupplyId: number | null;
+    }[];
+    filamentos: { id: number; code: string; name: string }[];
+    impresoras: { id: number; code: string; name: string }[];
+    hayActivos: boolean;
+    settings: { failureRate: number };
+  }>("produccion"),
+);
+
+export const loadTiendaAdmin = cache(() =>
+  vista<{
+    productos: { id: number; code: string; name: string; listPrice: number; stock: number }[];
+  }>("tienda"),
+);
+
+// ── Presupuestos ─────────────────────────────────────────────────────
+type CostoPieza = {
+  material: number; energy: number; wear: number;
+  assembly: number; design: number; labor: number;
+  errorMargin: number; costWithoutSupplies: number;
+  extras: number; extrasHigh: boolean;
+  totalCost: number; charge: number; market: number;
+};
+
+export const loadPresupuestos = cache(() =>
+  vista<{
+    presupuestos: {
+      id: number; date: string; clientName: string; notes: string | null;
+      status: string; items: number; total: number;
+    }[];
+  }>("presupuestos"),
+);
+
+export const loadPresupuesto = cache((id: number) =>
+  vista<{
+    presupuesto: { id: number; date: string; clientName: string; notes: string | null; status: string };
+    items: {
+      item: {
+        id: number; quoteId: number; name: string; description: string | null;
+        qty: number; printHours: number; grams: number;
+        assemblyMinutes: number; designHours: number;
+        filamentSupplyId: number | null; extraSuppliesArs: number; note: string | null;
+      };
+      filamentName: string | null;
+      costo: CostoPieza;
+    }[];
+    filamentos: { id: number; code: string; name: string }[];
+    settings: { targetMargin: number };
+  } | null>(`presupuesto/${id}`),
+);

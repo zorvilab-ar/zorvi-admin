@@ -1,5 +1,5 @@
 import React from "react";
-import { loadAll, allProductCosts, channelPrices } from "@/lib/calc";
+import { loadPrecios } from "@/lib/views/client";
 import { fmtArs, fmtPct } from "@/lib/format";
 import { PageHeader } from "@/components/shared";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,31 +16,13 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function PreciosPage() {
-  const data = await loadAll();
-  const costs = allProductCosts(data);
-  const target = data.settings.targetMargin;
-
-  // Con todas las comisiones en cero los seis canales dan el mismo número, así
-  // que la tabla muestra un precio que no es el real de MercadoLibre ni el de
-  // la tienda web. Conviene decirlo antes de que alguien fije precios con eso.
-  const noCommissions =
-    data.channels.length > 0 &&
-    data.channels.every((c) => c.commission === 0 && c.fixedCost === 0);
-
-  // Productos que hoy se venden por debajo del margen objetivo en el canal
-  // directo (el primero sin comisión, o el primero de la lista).
-  const baseChannel =
-    data.channels.find((c) => c.commission === 0 && c.fixedCost === 0) ??
-    data.channels[0];
-  const underTarget = baseChannel
-    ? data.products.filter((p) => {
-        if (p.listPrice <= 0) return false;
-        const c = costs.get(p.id);
-        if (!c) return false;
-        const [cp] = channelPrices(c, p.listPrice, [baseChannel], data.settings);
-        return cp.netMarginAtList < target;
-      })
-    : [];
+  const {
+    canales,
+    targetMargin: target,
+    sinComisiones: noCommissions,
+    bajoObjetivo: underTarget,
+    productos,
+  } = await loadPrecios();
 
   return (
     <div>
@@ -53,7 +35,7 @@ export default async function PreciosPage() {
         <Alert className="mb-5 border-[#E0883A]">
           <AlertTitle>Los canales están todos en comisión 0</AlertTitle>
           <AlertDescription>
-            Por eso los {data.channels.length} canales muestran el mismo precio.
+            Por eso los {canales.length} canales muestran el mismo precio.
             MercadoLibre, Tienda web y Mayorista hoy no reflejan lo que
             realmente cobran. Cargá las comisiones en{" "}
             <a href="/parametros" className="underline">Parámetros → Canales</a>{" "}
@@ -70,7 +52,7 @@ export default async function PreciosPage() {
               : `${underTarget.length} productos están por debajo del margen objetivo`}
           </AlertTitle>
           <AlertDescription>
-            {underTarget.map((p) => p.code).join(", ")} se{" "}
+            {underTarget.join(", ")} se{" "}
             {underTarget.length === 1 ? "vende" : "venden"} a un precio que deja
             menos del {fmtPct(target)} objetivo. Mirá la columna Sugerido: o
             sube el precio, o baja el costo.
@@ -88,7 +70,7 @@ export default async function PreciosPage() {
                 <TableHead className="text-right">Costo variable</TableHead>
                 <TableHead className="text-right">Costo total</TableHead>
                 <TableHead className="text-right">Precio de lista</TableHead>
-                {data.channels.map((c) => (
+                {canales.map((c) => (
                   <TableHead key={c.id} className="border-l text-center" colSpan={2}>
                     {c.name}
                   </TableHead>
@@ -100,7 +82,7 @@ export default async function PreciosPage() {
                 <TableHead />
                 <TableHead />
                 <TableHead />
-                {data.channels.map((c) => (
+                {canales.map((c) => (
                   <React.Fragment key={c.id}>
                     <TableHead className="border-l text-right text-[11px]">
                       Sugerido
@@ -113,9 +95,8 @@ export default async function PreciosPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.products.map((p) => {
-                const c = costs.get(p.id)!;
-                const prices = channelPrices(c, p.listPrice, data.channels, data.settings);
+              {productos.map((p) => {
+                const prices = p.porCanal;
                 return (
                   <TableRow key={p.id}>
                     <TableCell className="sticky left-0 bg-card font-mono text-xs">
@@ -124,11 +105,11 @@ export default async function PreciosPage() {
                       </a>
                     </TableCell>
                     <TableCell className="whitespace-nowrap font-medium">{p.name}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtArs(c.variableCost)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmtArs(c.totalCost)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtArs(p.variableCost)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtArs(p.totalCost)}</TableCell>
                     <TableCell className="text-right tabular-nums">{p.listPrice > 0 ? fmtArs(p.listPrice) : "—"}</TableCell>
                     {prices.map((cp) => (
-                      <React.Fragment key={cp.channel.id}>
+                      <React.Fragment key={cp.channelId}>
                         <TableCell className="border-l text-right tabular-nums">
                           {fmtArs(cp.suggestedPrice)}
                         </TableCell>
@@ -162,7 +143,7 @@ export default async function PreciosPage() {
 
       <p className="mt-4 text-xs text-muted-foreground">
         Las comisiones por canal se configuran en Parámetros → Canales de venta.
-        El margen objetivo actual es {fmtPct(data.settings.targetMargin)}.
+        El margen objetivo actual es {fmtPct(target)}.
       </p>
     </div>
   );

@@ -1,4 +1,4 @@
-import { loadAll, allSalesComputed, allProductCosts, productStocks } from "@/lib/calc";
+import { loadVentas } from "@/lib/views/client";
 import { createSale, updateSale, deleteSale, markSaleCollected } from "@/lib/actions";
 import { fmtArs, fmtNum, fmtPct, fmtDate } from "@/lib/format";
 import { PageHeader, Kpi, EmptyState } from "@/components/shared";
@@ -20,11 +20,10 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function VentasPage() {
-  const data = await loadAll();
-  const computed = allSalesComputed(data).sort((a, b) => b.sale.date.localeCompare(a.sale.date));
-  const productsById = new Map(data.products.map((p) => [p.id, p]));
-  const channelsById = new Map(data.channels.map((c) => [c.id, c]));
-  const stocks = new Map(productStocks(data).map((s) => [s.product.id, s.current]));
+  // Contribución, comisión y neto vienen calculados; acá solo se ordena y pinta.
+  const { ventas, productos: saleProducts, canales: saleChannels, taxRate } =
+    await loadVentas();
+  const computed = [...ventas].sort((a, b) => b.sale.date.localeCompare(a.sale.date));
   const today = new Date().toISOString().slice(0, 10);
 
   const totalNet = computed.reduce((a, s) => a + s.totalNet, 0);
@@ -32,22 +31,6 @@ export default async function VentasPage() {
   const totalUnits = computed.reduce((a, s) => a + s.sale.qty, 0);
   const pending = computed.filter((s) => s.sale.status === "Pendiente");
 
-  const costs = allProductCosts(data);
-  const saleProducts = data.products.map((p) => ({
-    id: p.id,
-    code: p.code,
-    name: p.name,
-    listPrice: p.listPrice,
-    variableCost: costs.get(p.id)?.variableCost ?? 0,
-    stock: stocks.get(p.id) ?? 0,
-  }));
-  const saleChannels = data.channels.map((c) => ({
-    id: c.id,
-    name: c.name,
-    commission: c.commission,
-    fixedCost: c.fixedCost,
-  }));
-  const taxRate = data.settings.iibbRate + data.settings.otherTaxRate;
 
   const addSheet = (
     <FormSheet
@@ -120,15 +103,13 @@ export default async function VentasPage() {
               </TableHeader>
               <TableBody>
                 {computed.map((s) => {
-                  const p = productsById.get(s.sale.productId);
-                  const ch = channelsById.get(s.sale.channelId);
                   return (
                     <TableRow key={s.sale.id}>
                       <TableCell className="text-xs">{fmtDate(s.sale.date)}</TableCell>
                       <TableCell className="text-xs font-semibold">{s.sale.customer ?? "—"}</TableCell>
-                      <TableCell className="text-xs font-semibold">{ch?.name}</TableCell>
+                      <TableCell className="text-xs font-semibold">{s.channelName}</TableCell>
                       <TableCell className="font-bold">
-                        {p?.code} {s.sale.qty > 1 ? `×${fmtNum(s.sale.qty)}` : ""}
+                        {s.productCode} {s.sale.qty > 1 ? `×${fmtNum(s.sale.qty)}` : ""}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{fmtNum(s.sale.qty)}</TableCell>
                       <TableCell className="text-right tabular-nums">{fmtArs(s.totalNet)}</TableCell>
@@ -169,7 +150,7 @@ export default async function VentasPage() {
                             sale={s.sale}
                           />
                         </FormSheet>
-                        <ConfirmDelete action={deleteSale} id={s.sale.id} what={`la venta del ${fmtDate(s.sale.date)} (${p?.code})`} />
+                        <ConfirmDelete action={deleteSale} id={s.sale.id} what={`la venta del ${fmtDate(s.sale.date)} (${s.productCode})`} />
                       </TableCell>
                     </TableRow>
                   );

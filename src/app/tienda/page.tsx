@@ -1,4 +1,4 @@
-import { loadAll, productStocks } from "@/lib/calc";
+import { loadTiendaAdmin } from "@/lib/views/client";
 import { getListings, shopConfigurada, ShopError, type ListingTienda } from "@/lib/shop/client";
 import { publishListing } from "@/lib/shop/actions";
 import { fmtArs, fmtNum } from "@/lib/format";
@@ -30,8 +30,7 @@ function slugify(s: string) {
 }
 
 export default async function TiendaPage() {
-  const data = await loadAll();
-  const stocks = new Map(productStocks(data).map((s) => [s.product.code, s.current]));
+  const { productos } = await loadTiendaAdmin();
 
   let listings: ListingTienda[] = [];
   let error: string | null = null;
@@ -49,7 +48,7 @@ export default async function TiendaPage() {
   const publicados = listings.filter((l) => l.published).length;
   const reservadas = listings.reduce((a, l) => a + l.reserved, 0);
 
-  const fields = (p: (typeof data.products)[number], l?: ListingTienda) => (
+  const fields = (p: (typeof productos)[number], l?: ListingTienda) => (
     <>
       <input type="hidden" name="code" value={p.code} />
       <TextField
@@ -160,8 +159,8 @@ export default async function TiendaPage() {
 
       {!error && (
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Kpi label="Publicados" value={fmtNum(publicados)} hint={`de ${data.products.length} productos`} />
-          <Kpi label="Sin publicar" value={fmtNum(data.products.length - publicados)} />
+          <Kpi label="Publicados" value={fmtNum(publicados)} hint={`de ${productos.length} productos`} />
+          <Kpi label="Sin publicar" value={fmtNum(productos.length - publicados)} />
           <Kpi
             label="Unidades reservadas"
             value={fmtNum(reservadas)}
@@ -172,7 +171,7 @@ export default async function TiendaPage() {
         </div>
       )}
 
-      {data.products.length === 0 ? (
+      {productos.length === 0 ? (
         <EmptyState
           title="Todavía no hay productos"
           helper="Cargá productos en el catálogo interno antes de publicarlos en la tienda."
@@ -194,9 +193,9 @@ export default async function TiendaPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.products.map((p) => {
+                {productos.map((p) => {
                   const l = porCodigo.get(p.code);
-                  const stock = stocks.get(p.code) ?? 0;
+                  const stock = p.stock;
                   const desfasado =
                     l && (l.price !== p.listPrice || l.stockPublished !== Math.max(0, stock));
                   return (

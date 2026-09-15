@@ -1,4 +1,4 @@
-import { loadAll, allProductCosts } from "@/lib/calc";
+import { loadProductos } from "@/lib/views/client";
 import { createProduct, deleteProduct } from "@/lib/actions";
 import { fmtArs, fmtNum, fmtPct } from "@/lib/format";
 import { PageHeader, EmptyState } from "@/components/shared";
@@ -31,8 +31,8 @@ const STATUS_OPTIONS = ["En desarrollo", "Activo", "Discontinuado"].map((s) => (
 }));
 
 export default async function ProductosPage() {
-  const data = await loadAll();
-  const costs = allProductCosts(data);
+  // Costos y stock vienen calculados del backend.
+  const { productos } = await loadProductos();
 
   const addSheet = (
     <FormSheet
@@ -64,7 +64,7 @@ export default async function ProductosPage() {
         actions={addSheet}
       />
 
-      {data.products.length === 0 ? (
+      {productos.length === 0 ? (
         <EmptyState
           title="Todavía no hay productos"
           helper="Creá tu primera lámpara con los datos del slicer y armale la receta. El costo y el precio sugerido salen solos."
@@ -89,8 +89,8 @@ export default async function ProductosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.products.map((p) => {
-                  const c = costs.get(p.id)!;
+                {productos.map((p) => {
+                  const c = p.costo;
                   return (
                     <TableRow key={p.id}>
                       <TableCell className="font-mono text-xs">
