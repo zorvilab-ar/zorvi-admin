@@ -1,5 +1,9 @@
 import { loadAll, partnerAccounts } from "@/lib/calc";
-import { createPartnerMovement, deletePartnerMovement } from "@/lib/actions";
+import {
+  createPartnerMovement,
+  updatePartnerMovement,
+  deletePartnerMovement,
+} from "@/lib/actions";
 import { fmtArs, fmtPct, fmtDate } from "@/lib/format";
 import { PageHeader, SectionTitle, EmptyState } from "@/components/shared";
 import { FormSheet } from "@/components/form-sheet";
@@ -28,6 +32,34 @@ export default async function SociosPage() {
   const totalIn = accounts.reduce((a, x) => a + x.contributions, 0);
   const totalOut = accounts.reduce((a, x) => a + x.withdrawals, 0);
 
+  const movementFields = (m?: (typeof movements)[number]) => (
+    <>
+      {m && <input type="hidden" name="id" value={m.id} />}
+      <DateField name="date" label="Fecha" defaultValue={m?.date ?? today} required />
+      <SelectField
+        name="partnerId"
+        label="Socio"
+        defaultValue={m?.partnerId}
+        options={data.partners.map((p) => ({ value: p.id, label: p.name }))}
+        placeholder="¿Quién?"
+        required
+      />
+      <SelectField
+        name="type"
+        label="Tipo"
+        defaultValue={m?.type}
+        options={[
+          { value: "Aporte", label: "Aporte (pone plata)" },
+          { value: "Retiro", label: "Retiro (saca plata)" },
+        ]}
+        required
+      />
+      <NumberField name="amountArs" label="Monto" defaultValue={m?.amountArs} suffix="ARS" required />
+      <TextField name="paymentMethod" label="Medio de pago" defaultValue={m?.paymentMethod} placeholder="Transferencia, efectivo…" />
+      <TextField name="notes" label="Notas" defaultValue={m?.notes} placeholder="Aporte en especie, adelanto…" />
+    </>
+  );
+
   const addSheet = (
     <FormSheet
       title="Registrar movimiento de socio"
@@ -36,26 +68,7 @@ export default async function SociosPage() {
       triggerLabel="Nuevo movimiento"
       successMessage="Movimiento registrado"
     >
-      <DateField name="date" label="Fecha" defaultValue={today} required />
-      <SelectField
-        name="partnerId"
-        label="Socio"
-        options={data.partners.map((p) => ({ value: p.id, label: p.name }))}
-        placeholder="¿Quién?"
-        required
-      />
-      <SelectField
-        name="type"
-        label="Tipo"
-        options={[
-          { value: "Aporte", label: "Aporte (pone plata)" },
-          { value: "Retiro", label: "Retiro (saca plata)" },
-        ]}
-        required
-      />
-      <NumberField name="amountArs" label="Monto" suffix="ARS" required />
-      <TextField name="paymentMethod" label="Medio de pago" placeholder="Transferencia, efectivo…" />
-      <TextField name="notes" label="Notas" placeholder="Aporte en especie, adelanto…" />
+      {movementFields()}
     </FormSheet>
   );
 
@@ -131,7 +144,7 @@ export default async function SociosPage() {
                   <TableHead className="text-right">Monto</TableHead>
                   <TableHead>Medio</TableHead>
                   <TableHead>Notas</TableHead>
-                  <TableHead className="w-12" />
+                  <TableHead className="w-20" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -146,8 +159,28 @@ export default async function SociosPage() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{fmtArs(m.amountArs)}</TableCell>
                     <TableCell className="text-xs font-semibold">{m.paymentMethod ?? "—"}</TableCell>
-                    <TableCell className="text-xs font-semibold text-muted-foreground">{m.notes ?? ""}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-xs font-semibold text-muted-foreground">
+                      {m.purchaseId ? (
+                        <Badge className="bg-[#5B7FB5] text-[11px] text-white">
+                          Generado por una compra
+                        </Badge>
+                      ) : (
+                        (m.notes ?? "")
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      {/* Los aportes que nacieron de una compra se editan allá:
+                          acá quedarían diciendo algo distinto de la compra. */}
+                      {!m.purchaseId && (
+                        <FormSheet
+                          mode="edit"
+                          title="Editar movimiento"
+                          action={updatePartnerMovement}
+                          successMessage="Movimiento actualizado"
+                        >
+                          {movementFields(m)}
+                        </FormSheet>
+                      )}
                       <ConfirmDelete
                         action={deletePartnerMovement}
                         id={m.id}

@@ -2,6 +2,9 @@ export interface CustomPrintCost {
   material: number;
   energy: number;
   wear: number;
+  assembly: number;
+  design: number;
+  labor: number;
   errorMargin: number;
   costWithoutSupplies: number;
   extras: number;
@@ -18,6 +21,10 @@ export function customPrintCost(opts: {
   qty?: number;
   filamentPricePerKg: number;
   extraSuppliesArs?: number;
+  assemblyMinutes?: number;
+  designHours?: number;
+  assemblyRate?: number;
+  designRate?: number;
   failureRate: number;
   printerWatts: number;
   kwhPrice: number;
@@ -31,7 +38,13 @@ export function customPrintCost(opts: {
   const energy =
     ((opts.hours * opts.printerWatts * opts.kwhPrice) / 1000) * qty;
   const wear = opts.hours * opts.amortPerHour * qty;
-  const subtotal = material + energy + wear;
+  // El armado se paga por pieza; el diseño se hace una sola vez para todo el
+  // pedido, así que no se multiplica por la cantidad.
+  const assembly =
+    ((opts.assemblyMinutes ?? 0) / 60) * (opts.assemblyRate ?? 0) * qty;
+  const design = (opts.designHours ?? 0) * (opts.designRate ?? 0);
+  const labor = assembly + design;
+  const subtotal = material + energy + wear + labor;
   const errorMargin = subtotal * opts.failureRate;
   const costWithoutSupplies = subtotal + errorMargin;
   const extras = (opts.extraSuppliesArs ?? 0) * qty;
@@ -49,6 +62,9 @@ export function customPrintCost(opts: {
     material,
     energy,
     wear,
+    assembly,
+    design,
+    labor,
     errorMargin,
     costWithoutSupplies,
     extras,

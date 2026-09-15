@@ -92,11 +92,18 @@ export const partnerMovements = pgTable(
     type: text("type", { enum: ["Aporte", "Retiro"] }).notNull(),
     amountArs: real("amount_ars").notNull(),
     paymentMethod: text("payment_method"),
+    // Aporte generado por una compra que pagó el socio de su bolsillo. Se
+    // mantiene sincronizado con ella y se borra si la compra se borra, para
+    // que la caja no vuelva a mostrar plata que ya salió.
+    purchaseId: integer("purchase_id").references(() => purchases.id, {
+      onDelete: "cascade",
+    }),
     notes: text("notes"),
   },
   (t) => [
     index("partner_movements_partner_idx").on(t.partnerId),
     index("partner_movements_date_idx").on(t.date),
+    index("partner_movements_purchase_idx").on(t.purchaseId),
     check("partner_movements_type_enum", sql`${t.type} in ('Aporte', 'Retiro')`),
     check("partner_movements_amount_non_neg", sql`${t.amountArs} >= 0`),
   ],
@@ -109,6 +116,11 @@ export const assets = pgTable(
     id: serial("id").primaryKey(),
     code: text("code").notNull().unique(),
     name: text("name").notNull(),
+    // Solo las impresoras imprimen: el tipo filtra el select de Producción y
+    // decide qué activos aportan desgaste al costo por hora de impresión.
+    type: text("type", { enum: ["Impresora", "Herramienta", "Otro"] })
+      .notNull()
+      .default("Impresora"),
     purchaseDate: text("purchase_date"),
     costArs: real("cost_ars").notNull().default(0),
     usefulLifeHours: real("useful_life_hours").notNull().default(5000),
@@ -116,6 +128,10 @@ export const assets = pgTable(
     notes: text("notes"),
   },
   (t) => [
+    check(
+      "assets_type_enum",
+      sql`${t.type} in ('Impresora', 'Herramienta', 'Otro')`,
+    ),
     check(
       "assets_non_negative",
       sql`${t.costArs} >= 0 and ${t.usefulLifeHours} > 0 and ${t.residualArs} >= 0`,
@@ -370,6 +386,9 @@ export const quoteItems = pgTable(
     qty: real("qty").notNull().default(1),
     printHours: real("print_hours").notNull().default(0),
     grams: real("grams").notNull().default(0),
+    // Mano de obra: armado a `assembly_rate` y diseño a `design_rate` (settings).
+    assemblyMinutes: real("assembly_minutes").notNull().default(0),
+    designHours: real("design_hours").notNull().default(0),
     filamentSupplyId: integer("filament_supply_id").references(
       () => supplies.id,
     ),
@@ -381,6 +400,7 @@ export const quoteItems = pgTable(
     check(
       "quote_items_non_negative",
       sql`${t.qty} >= 0 and ${t.printHours} >= 0 and ${t.grams} >= 0
+        and ${t.assemblyMinutes} >= 0 and ${t.designHours} >= 0
         and ${t.extraSuppliesArs} >= 0`,
     ),
   ],

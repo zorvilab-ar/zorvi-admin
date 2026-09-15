@@ -1,10 +1,10 @@
 import { loadAll, allSalesComputed, allProductCosts, productStocks } from "@/lib/calc";
-import { createSale, deleteSale, markSaleCollected } from "@/lib/actions";
+import { createSale, updateSale, deleteSale, markSaleCollected } from "@/lib/actions";
 import { fmtArs, fmtNum, fmtPct, fmtDate } from "@/lib/format";
 import { PageHeader, Kpi, EmptyState } from "@/components/shared";
 import { FormSheet } from "@/components/form-sheet";
 import { ConfirmDelete } from "@/components/confirm-delete";
-import { TextField, NumberField, DateField, SelectField, CheckboxField } from "@/components/fields";
+import { SaleFields } from "@/components/sale-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,6 +32,23 @@ export default async function VentasPage() {
   const totalUnits = computed.reduce((a, s) => a + s.sale.qty, 0);
   const pending = computed.filter((s) => s.sale.status === "Pendiente");
 
+  const costs = allProductCosts(data);
+  const saleProducts = data.products.map((p) => ({
+    id: p.id,
+    code: p.code,
+    name: p.name,
+    listPrice: p.listPrice,
+    variableCost: costs.get(p.id)?.variableCost ?? 0,
+    stock: stocks.get(p.id) ?? 0,
+  }));
+  const saleChannels = data.channels.map((c) => ({
+    id: c.id,
+    name: c.name,
+    commission: c.commission,
+    fixedCost: c.fixedCost,
+  }));
+  const taxRate = data.settings.iibbRate + data.settings.otherTaxRate;
+
   const addSheet = (
     <FormSheet
       title="Registrar venta"
@@ -41,45 +58,12 @@ export default async function VentasPage() {
       successMessage="Venta registrada 🎉"
       wide
     >
-      <DateField name="date" label="Fecha de la venta" defaultValue={today} required />
-      <TextField name="customer" label="Cliente" placeholder="Nombre o @instagram" />
-      <SelectField
-        name="channelId"
-        label="Canal"
-        options={data.channels.map((c) => ({ value: c.id, label: c.name }))}
-        placeholder="¿Por dónde se vendió?"
-        required
-        hint="Define la comisión que se descuenta."
+      <SaleFields
+        products={saleProducts}
+        channels={saleChannels}
+        taxRate={taxRate}
+        today={today}
       />
-      <SelectField
-        name="productId"
-        label="Producto"
-        options={data.products.map((p) => ({
-          value: p.id,
-          label: `${p.code} — ${p.name} (stock: ${fmtNum(stocks.get(p.id) ?? 0)})`,
-        }))}
-        placeholder="¿Qué se vendió?"
-        required
-      />
-      <NumberField name="qty" label="Cantidad" defaultValue={1} required />
-      <NumberField name="unitPrice" label="Precio unitario cobrado" suffix="ARS" required hint="El precio real de esta venta, con descuento ya aplicado si lo hubo en el precio." />
-      <NumberField name="discount" label="Descuento" defaultValue={0} suffix="ARS" hint="En pesos, sobre el total." />
-      <NumberField name="shipping" label="Envío a cargo nuestro" defaultValue={0} suffix="ARS" hint="Solo si el envío lo pagamos nosotros." />
-      <TextField name="paymentMethod" label="Medio de pago" placeholder="Efectivo, transferencia, MP…" />
-      <SelectField
-        name="status"
-        label="¿Ya se cobró?"
-        defaultValue="Cobrada"
-        options={[
-          { value: "Cobrada", label: "Sí, cobrada" },
-          { value: "Pendiente", label: "No, cobro pendiente" },
-        ]}
-        hint="Si está pendiente, después la marcás cobrada desde la tabla."
-      />
-      <DateField name="collectionDate" label="Fecha de cobro (si fue otro día)" hint="Vacío = misma fecha de la venta. Arma el flujo de caja." />
-      <TextField name="receipt" label="Comprobante" placeholder="N° de factura o recibo" />
-      <CheckboxField name="invoiced" label="Se facturó (ARCA)" hint="Suma al control del tope de monotributo." />
-      <TextField name="notes" label="Notas" span2 />
     </FormSheet>
   );
 
@@ -131,7 +115,7 @@ export default async function VentasPage() {
                   <TableHead className="text-right">Ganancia</TableHead>
                   <TableHead>Cobro</TableHead>
                   <TableHead>Fact.</TableHead>
-                  <TableHead className="w-12" />
+                  <TableHead className="w-20" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -168,7 +152,23 @@ export default async function VentasPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-xs font-bold">{s.sale.invoiced ? "Sí" : "No"}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right whitespace-nowrap">
+                        <FormSheet
+                          mode="edit"
+                          title={`Editar la venta del ${fmtDate(s.sale.date)}`}
+                          action={updateSale}
+                          successMessage="Venta actualizada"
+                          wide
+                        >
+                          <input type="hidden" name="id" value={s.sale.id} />
+                          <SaleFields
+                            products={saleProducts}
+                            channels={saleChannels}
+                            taxRate={taxRate}
+                            today={today}
+                            sale={s.sale}
+                          />
+                        </FormSheet>
                         <ConfirmDelete action={deleteSale} id={s.sale.id} what={`la venta del ${fmtDate(s.sale.date)} (${p?.code})`} />
                       </TableCell>
                     </TableRow>

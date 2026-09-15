@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { assertAdmin } from "@/lib/auth/session";
 import { hexForFilamentColor } from "@/lib/filament-colors";
 import {
   parseForm,
+  ValidationError,
   idOnly,
   settingsSchema,
   channelSchema,
@@ -23,9 +24,16 @@ import {
   recipeItemCreateSchema,
   recipeItemUpdateSchema,
   productionRunCreateSchema,
+  productionRunUpdateSchema,
   saleCreateSchema,
+  saleUpdateSchema,
   purchaseCreateSchema,
+  purchaseUpdateSchema,
+  type PurchaseInput,
+  purchaseEffectsSchema,
+  assetPurchaseSchema,
   partnerMovementCreateSchema,
+  partnerMovementUpdateSchema,
   quoteCreateSchema,
   quoteUpdateSchema,
   quoteItemCreateSchema,
@@ -36,6 +44,9 @@ import {
 
 const refresh = () => revalidatePath("/", "layout");
 const today = () => new Date().toISOString().slice(0, 10);
+
+/** Handle de transacción de Drizzle: misma API que `db` dentro del bloque. */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 // ── Parámetros ───────────────────────────────────────────────────────
 export async function updateSettings(fd: FormData) {
@@ -55,7 +66,27 @@ export async function updateChannel(fd: FormData) {
 // ── Activos ──────────────────────────────────────────────────────────
 export async function createAsset(fd: FormData) {
   await assertAdmin();
-  await db.insert(schema.assets).values(parseForm(assetCreateSchema, fd));
+  const data = parseForm(assetCreateSchema, fd);
+  const { registerPurchase, paidBy } = parseForm(assetPurchaseSchema, fd);
+
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.assets).values(data);
+    // El activo entra al inventario; sin este asiento nunca sale de la caja.
+    if (registerPurchase && data.costArs > 0) {
+      await tx.insert(schema.purchases).values({
+        date: data.purchaseDate ?? today(),
+        supplier: null,
+        type: "Activo",
+        detail: `${data.code} — ${data.name}`,
+        qty: 1,
+        amountArs: data.costArs,
+        paidBy,
+        status: "Pagada",
+        paymentDate: data.purchaseDate ?? today(),
+        notes: "Compra registrada junto con el alta del activo.",
+      });
+    }
+  });
   refresh();
 }
 
@@ -175,38 +206,109 @@ export async function deleteRecipeItem(fd: FormData) {
 export async function createProductionRun(fd: FormData) {
   await assertAdmin();
   const data = parseForm(productionRunCreateSchema, fd);
-  await db.insert(schema.productionRuns).values(data);
-  if (data.filamentSupplyId && data.gramsReal > 0) {
-    try {
-      await deductFilamentRolls(data.filamentSupplyId, data.gramsReal);
-    } catch {
-      // filament_rolls todavía no existe en esta base
-    }
-  }
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.productionRuns).values(data);
+    await consumeFilament(tx, data.filamentSupplyId, data.gramsReal);
+  });
   refresh();
 }
 
-async function deductFilamentRolls(supplyId: number, grams: number) {
-  const rolls = await db.select().from(schema.filamentRolls)
+export async function updateProductionRun(fd: FormData) {
+  await assertAdmin();
+  const { id, ...data } = parseForm(productionRunUpdateSchema, fd);
+  await db.transaction(async (tx) => {
+    const [old] = await tx
+      .select()
+      .from(schema.productionRuns)
+      .where(eq(schema.productionRuns.id, id));
+    if (!old) throw new ValidationError("La tanda ya no existe.");
+
+    await tx
+      .update(schema.productionRuns)
+      .set(data)
+      .where(eq(schema.productionRuns.id, id));
+
+    // Se deshace el consumo viejo y se aplica el nuevo: corregir los gramos
+    // de una tanda no puede dejar el stock de rollos descuadrado.
+    await restoreFilament(tx, old.filamentSupplyId, old.gramsReal);
+    await consumeFilament(tx, data.filamentSupplyId, data.gramsReal);
+  });
+  refresh();
+}
+
+export async function deleteProductionRun(fd: FormData) {
+  await assertAdmin();
+  const { id } = parseForm(idOnly, fd);
+  await db.transaction(async (tx) => {
+    const [old] = await tx
+      .select()
+      .from(schema.productionRuns)
+      .where(eq(schema.productionRuns.id, id));
+    await tx
+      .delete(schema.productionRuns)
+      .where(eq(schema.productionRuns.id, id));
+    if (old) await restoreFilament(tx, old.filamentSupplyId, old.gramsReal);
+  });
+  refresh();
+}
+
+/** Descuenta gramos de los rollos abiertos, del más viejo al más nuevo. */
+async function consumeFilament(
+  tx: Tx,
+  supplyId: number | null,
+  grams: number,
+) {
+  if (!supplyId || grams <= 0) return;
+  const rolls = await tx
+    .select()
+    .from(schema.filamentRolls)
     .where(eq(schema.filamentRolls.supplyId, supplyId))
     .orderBy(asc(schema.filamentRolls.openedAt), asc(schema.filamentRolls.id));
+
   let left = grams;
   for (const roll of rolls) {
     if (left <= 0) break;
     if (roll.remainingGrams <= 0) continue;
     const take = Math.min(roll.remainingGrams, left);
-    await db.update(schema.filamentRolls)
+    await tx
+      .update(schema.filamentRolls)
       .set({ remainingGrams: roll.remainingGrams - take })
       .where(eq(schema.filamentRolls.id, roll.id));
     left -= take;
   }
 }
 
-export async function deleteProductionRun(fd: FormData) {
-  await assertAdmin();
-  const { id } = parseForm(idOnly, fd);
-  await db.delete(schema.productionRuns).where(eq(schema.productionRuns.id, id));
-  refresh();
+/**
+ * Devuelve gramos a los rollos, del más nuevo al más viejo — el inverso del
+ * consumo. Nunca sube un rollo por encima de los gramos con los que se abrió.
+ */
+async function restoreFilament(
+  tx: Tx,
+  supplyId: number | null,
+  grams: number,
+) {
+  if (!supplyId || grams <= 0) return;
+  const rolls = await tx
+    .select()
+    .from(schema.filamentRolls)
+    .where(eq(schema.filamentRolls.supplyId, supplyId))
+    .orderBy(
+      desc(schema.filamentRolls.openedAt),
+      desc(schema.filamentRolls.id),
+    );
+
+  let left = grams;
+  for (const roll of rolls) {
+    if (left <= 0) break;
+    const room = roll.initialGrams - roll.remainingGrams;
+    if (room <= 0) continue;
+    const give = Math.min(room, left);
+    await tx
+      .update(schema.filamentRolls)
+      .set({ remainingGrams: roll.remainingGrams + give })
+      .where(eq(schema.filamentRolls.id, roll.id));
+    left -= give;
+  }
 }
 
 // ── Ventas ───────────────────────────────────────────────────────────
@@ -218,6 +320,20 @@ export async function createSale(fd: FormData) {
     collectionDate:
       data.collectionDate ?? (data.status === "Cobrada" ? data.date : null),
   });
+  refresh();
+}
+
+export async function updateSale(fd: FormData) {
+  await assertAdmin();
+  const { id, ...data } = parseForm(saleUpdateSchema, fd);
+  await db
+    .update(schema.sales)
+    .set({
+      ...data,
+      collectionDate:
+        data.collectionDate ?? (data.status === "Cobrada" ? data.date : null),
+    })
+    .where(eq(schema.sales.id, id));
   refresh();
 }
 
@@ -241,12 +357,121 @@ export async function deleteSale(fd: FormData) {
 export async function createPurchase(fd: FormData) {
   await assertAdmin();
   const data = parseForm(purchaseCreateSchema, fd);
-  await db.insert(schema.purchases).values({
-    ...data,
-    paymentDate:
-      data.paymentDate ?? (data.status === "Pagada" ? data.date : null),
+  const effects = parseForm(purchaseEffectsSchema, fd);
+
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(schema.purchases)
+      .values({
+        ...data,
+        paymentDate:
+          data.paymentDate ?? (data.status === "Pagada" ? data.date : null),
+      })
+      .returning({ id: schema.purchases.id });
+    if (!row) throw new Error("No se pudo registrar la compra");
+    await applySupplyCost(tx, data, effects.updateSupplyCost);
+    await syncPurchaseContribution(tx, row.id, data, effects.registerContribution);
   });
   refresh();
+}
+
+export async function updatePurchase(fd: FormData) {
+  await assertAdmin();
+  const { id, ...data } = parseForm(purchaseUpdateSchema, fd);
+  const effects = parseForm(purchaseEffectsSchema, fd);
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(schema.purchases)
+      .set({
+        ...data,
+        paymentDate:
+          data.paymentDate ?? (data.status === "Pagada" ? data.date : null),
+      })
+      .where(eq(schema.purchases.id, id));
+    await applySupplyCost(tx, data, effects.updateSupplyCost);
+    await syncPurchaseContribution(tx, id, data, effects.registerContribution);
+  });
+  refresh();
+}
+
+/**
+ * Lleva el precio pagado al insumo. El insumo guarda precio y cantidad *del
+ * pack* — `unitCost()` divide uno por otro — así que la compra entera es el
+ * pack nuevo: 1 kg a $21.670 queda como purchasePrice 21670 / packQty 1000.
+ */
+async function applySupplyCost(
+  tx: Tx,
+  data: PurchaseInput,
+  enabled: boolean,
+) {
+  if (!enabled) return;
+  if (!data.supplyId || !data.qty || data.qty <= 0 || data.amountArs <= 0) return;
+  await tx
+    .update(schema.supplies)
+    .set({
+      purchasePrice: data.amountArs,
+      packQty: data.qty,
+      updatedAt: today(),
+    })
+    .where(eq(schema.supplies.id, data.supplyId));
+}
+
+/**
+ * Mantiene el aporte del socio en línea con la compra que lo generó: lo crea,
+ * lo actualiza si cambió el monto o la fecha, y lo borra si se destildó. Sin
+ * esta sincronización, editar la compra dejaba un aporte viejo y la caja
+ * volvía a mostrar plata que no existe.
+ */
+async function syncPurchaseContribution(
+  tx: Tx,
+  purchaseId: number,
+  data: PurchaseInput,
+  enabled: boolean,
+) {
+  const [existing] = await tx
+    .select({ id: schema.partnerMovements.id })
+    .from(schema.partnerMovements)
+    .where(eq(schema.partnerMovements.purchaseId, purchaseId));
+
+  const wanted = enabled && !!data.paidBy && data.amountArs > 0;
+  if (!wanted) {
+    if (existing) {
+      await tx
+        .delete(schema.partnerMovements)
+        .where(eq(schema.partnerMovements.id, existing.id));
+    }
+    return;
+  }
+
+  const [partner] = await tx
+    .select({ id: schema.partners.id })
+    .from(schema.partners)
+    .where(eq(schema.partners.name, data.paidBy!));
+  if (!partner) {
+    throw new ValidationError(
+      `"${data.paidBy}" no figura como socio, así que no se puede registrar el aporte. Elegí un socio o destildá la opción.`,
+    );
+  }
+
+  const values = {
+    date: data.date,
+    partnerId: partner.id,
+    type: "Aporte" as const,
+    amountArs: data.amountArs,
+    paymentMethod: data.paymentMethod ?? null,
+    purchaseId,
+    notes: `Aporte por la compra: ${data.detail ?? data.supplier ?? "sin detalle"}`,
+  };
+
+  if (existing) {
+    await tx
+      .update(schema.partnerMovements)
+      .set(values)
+      .where(eq(schema.partnerMovements.id, existing.id));
+  } else {
+    await tx.insert(schema.partnerMovements).values(values);
+  }
 }
 
 export async function markPurchasePaid(fd: FormData) {
@@ -271,6 +496,27 @@ export async function createPartnerMovement(fd: FormData) {
   await db
     .insert(schema.partnerMovements)
     .values(parseForm(partnerMovementCreateSchema, fd));
+  refresh();
+}
+
+export async function updatePartnerMovement(fd: FormData) {
+  await assertAdmin();
+  const { id, ...data } = parseForm(partnerMovementUpdateSchema, fd);
+  // Los aportes generados por una compra se editan desde Compras: tocarlos
+  // acá los dejaría diciendo algo distinto de la compra que los originó.
+  const [linked] = await db
+    .select({ purchaseId: schema.partnerMovements.purchaseId })
+    .from(schema.partnerMovements)
+    .where(eq(schema.partnerMovements.id, id));
+  if (linked?.purchaseId) {
+    throw new ValidationError(
+      "Este aporte lo generó una compra. Editalo desde Compras y gastos.",
+    );
+  }
+  await db
+    .update(schema.partnerMovements)
+    .set(data)
+    .where(eq(schema.partnerMovements.id, id));
   refresh();
 }
 

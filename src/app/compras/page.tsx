@@ -1,10 +1,15 @@
 import { loadAll } from "@/lib/calc";
-import { createPurchase, deletePurchase, markPurchasePaid } from "@/lib/actions";
+import {
+  createPurchase,
+  updatePurchase,
+  deletePurchase,
+  markPurchasePaid,
+} from "@/lib/actions";
 import { fmtArs, fmtNum, fmtDate } from "@/lib/format";
 import { PageHeader, Kpi, EmptyState } from "@/components/shared";
 import { FormSheet } from "@/components/form-sheet";
 import { ConfirmDelete } from "@/components/confirm-delete";
-import { TextField, NumberField, DateField, SelectField } from "@/components/fields";
+import { PurchaseFields } from "@/components/purchase-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +40,20 @@ export default async function ComprasPage() {
   const total = purchases.reduce((a, p) => a + p.amountArs, 0);
   const pendingTotal = purchases.filter((p) => p.status === "Pendiente").reduce((a, p) => a + p.amountArs, 0);
 
+  const supplyOptions = data.supplies.map((s) => ({
+    id: s.id,
+    code: s.code,
+    name: s.name,
+    unit: s.unit,
+    purchasePrice: s.purchasePrice,
+    packQty: s.packQty,
+  }));
+  const partnerNames = data.partners.map((p) => p.name);
+  // Compras que ya generaron el aporte del socio: el checkbox arranca tildado.
+  const withContribution = new Set(
+    data.partnerMovements.map((m) => m.purchaseId).filter(Boolean) as number[],
+  );
+
   const addSheet = (
     <FormSheet
       title="Registrar compra o gasto"
@@ -44,52 +63,11 @@ export default async function ComprasPage() {
       successMessage="Compra registrada"
       wide
     >
-      <DateField name="date" label="Fecha" defaultValue={today} required />
-      <TextField name="supplier" label="Proveedor" placeholder="Mercado Libre, ProyectoColor…" />
-      <SelectField
-        name="type"
-        label="Tipo de gasto"
-        options={[
-          { value: "Insumo", label: "Insumo (filamento, componentes) → suma stock" },
-          { value: "Costo fijo", label: "Costo fijo (monotributo, ads, software)" },
-          { value: "Activo", label: "Activo (impresora, herramientas)" },
-          { value: "Otro", label: "Otro" },
-        ]}
-        required
-        hint="Si es un Activo, cargalo también en la página Activos para amortizarlo."
+      <PurchaseFields
+        supplies={supplyOptions}
+        partners={partnerNames}
+        today={today}
       />
-      <TextField name="detail" label="Detalle" placeholder="Rollo PLA negro 1 kg" />
-      <SelectField
-        name="supplyId"
-        label="Insumo (solo si el tipo es Insumo)"
-        options={data.supplies.map((s) => ({ value: s.id, label: `${s.code} — ${s.name} (${s.unit})` }))}
-        placeholder="Elegir insumo…"
-        hint="Vincula la compra al stock de ese insumo."
-      />
-      <NumberField name="qty" label="Cantidad comprada" hint="En la unidad del insumo: un rollo de 1 kg = 1000 g." />
-      <NumberField name="amountArs" label="Monto total" suffix="ARS" required />
-      <TextField name="paymentMethod" label="Medio de pago" />
-      <SelectField
-        name="paidBy"
-        label="¿Quién lo pagó?"
-        options={[
-          { value: "Caja", label: "Caja del negocio" },
-          ...data.partners.map((p) => ({ value: p.name, label: p.name })),
-        ]}
-        placeholder="Elegir…"
-        hint="Si lo pagó un socio de su bolsillo, cargá también el Aporte en la página Socios."
-      />
-      <SelectField
-        name="status"
-        label="¿Ya está pagada?"
-        defaultValue="Pagada"
-        options={[
-          { value: "Pagada", label: "Sí, pagada" },
-          { value: "Pendiente", label: "No, pago pendiente" },
-        ]}
-      />
-      <TextField name="receipt" label="Comprobante" />
-      <TextField name="notes" label="Notas" span2 />
     </FormSheet>
   );
 
@@ -132,7 +110,7 @@ export default async function ComprasPage() {
                   <TableHead className="text-right">Monto</TableHead>
                   <TableHead>Pagó</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead className="w-12" />
+                  <TableHead className="w-20" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -162,7 +140,24 @@ export default async function ComprasPage() {
                         </form>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right whitespace-nowrap">
+                      <FormSheet
+                        mode="edit"
+                        title={`Editar la compra del ${fmtDate(p.date)}`}
+                        description="Los dos asientos de abajo se vuelven a aplicar con los valores nuevos."
+                        action={updatePurchase}
+                        successMessage="Compra actualizada"
+                        wide
+                      >
+                        <input type="hidden" name="id" value={p.id} />
+                        <PurchaseFields
+                          supplies={supplyOptions}
+                          partners={partnerNames}
+                          today={today}
+                          purchase={p}
+                          linkedContribution={withContribution.has(p.id)}
+                        />
+                      </FormSheet>
                       <ConfirmDelete action={deletePurchase} id={p.id} what={`la compra del ${fmtDate(p.date)} (${fmtArs(p.amountArs)})`} />
                     </TableCell>
                   </TableRow>

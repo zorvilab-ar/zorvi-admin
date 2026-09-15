@@ -20,11 +20,8 @@ type RecipeItem = typeof schema.recipeItems.$inferSelect;
 type Asset = typeof schema.assets.$inferSelect;
 type Channel = typeof schema.channels.$inferSelect;
 type Sale = typeof schema.sales.$inferSelect;
-type Purchase = typeof schema.purchases.$inferSelect;
 type ProductionRun = typeof schema.productionRuns.$inferSelect;
-type PartnerMovement = typeof schema.partnerMovements.$inferSelect;
 type Partner = typeof schema.partners.$inferSelect;
-type FixedCost = typeof schema.fixedCosts.$inferSelect;
 type QuoteItem = typeof schema.quoteItems.$inferSelect;
 type FilamentRoll = typeof schema.filamentRolls.$inferSelect;
 
@@ -173,6 +170,10 @@ export function quoteItemCost(
     qty: item.qty,
     filamentPricePerKg: supply ? filamentPricePerKg(supply) : 0,
     extraSuppliesArs: item.extraSuppliesArs,
+    assemblyMinutes: item.assemblyMinutes,
+    designHours: item.designHours,
+    assemblyRate: st.assemblyRate,
+    designRate: st.designRate,
     failureRate: st.failureRate,
     printerWatts: st.printerWatts,
     kwhPrice: st.kwhPrice,
@@ -204,8 +205,18 @@ export function assetHoursUsed(a: Asset, runs: ProductionRun[]): number {
     .reduce((acc, r) => acc + r.hoursReal, 0);
 }
 
+/** Solo las impresoras imprimen: una pinza o un soplador no gastan vida útil
+ *  por hora de impresión, así que no pueden entrar en el costo por hora. */
+export function isPrinter(a: Asset): boolean {
+  return a.type === "Impresora";
+}
+
+export function printerAssets(assets: Asset[]): Asset[] {
+  return assets.filter(isPrinter);
+}
+
 export function totalAmortPerHour(assets: Asset[]): number {
-  return assets.reduce((acc, a) => acc + assetAmortPerHour(a), 0);
+  return printerAssets(assets).reduce((acc, a) => acc + assetAmortPerHour(a), 0);
 }
 
 // ── Ficha de costo del producto ──────────────────────────────────────
@@ -636,6 +647,17 @@ export function dashboard(data: AllData) {
   const withdrawals = accounts.reduce((a, x) => a + x.withdrawals, 0);
   const cashBalance = summary.length ? summary[summary.length - 1].cashBalance : 0;
 
+  // Un activo cargado en el inventario pero sin su compra nunca sale de la
+  // caja. Lo que el saldo tiene de más es, como mucho, la plata que entró
+  // como aporte: sin aportes no hay caja inflada, solo un activo sin financiar.
+  const assetPurchases = data.purchases
+    .filter((p) => p.type === "Activo")
+    .reduce((a, p) => a + p.amountArs, 0);
+  const assetsUnbooked = Math.min(
+    Math.max(0, assetInvestment - assetPurchases),
+    capital,
+  );
+
   const unitsSold = salesC.reduce((a, s) => a + s.sale.qty, 0);
   const salesTotal = salesC.reduce((a, s) => a + s.totalNet, 0);
   const avgTicket = unitsSold > 0 ? salesTotal / unitsSold : 0;
@@ -684,6 +706,8 @@ export function dashboard(data: AllData) {
   return {
     assetInvestment,
     assetInvestmentUsd: st.fxRate > 0 ? assetInvestment / st.fxRate : 0,
+    assetPurchases,
+    assetsUnbooked,
     capital,
     withdrawals,
     cashBalance,

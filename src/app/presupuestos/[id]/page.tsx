@@ -21,6 +21,7 @@ import {
   LinkButton,
 } from "@/components/shared";
 import { FormSheet } from "@/components/form-sheet";
+import { SlicerImport } from "@/components/slicer-import";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { TextField, NumberField, DateField, SelectField } from "@/components/fields";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,8 @@ type QuoteItem = {
   qty: number;
   printHours: number;
   grams: number;
+  assemblyMinutes: number;
+  designHours: number;
   filamentSupplyId: number | null;
   extraSuppliesArs: number;
   note: string | null;
@@ -90,6 +93,7 @@ function ItemFields({
         placeholder="Color, material, acabado…"
       />
       <NumberField name="qty" label="Cantidad" defaultValue={item?.qty ?? 1} required />
+      <SlicerImport />
       <NumberField
         name="printHours"
         label="Horas de impresión"
@@ -111,6 +115,20 @@ function ItemFields({
         options={filamentOptions}
         placeholder="Elegir filamento…"
         hint="Define el precio del kilo."
+      />
+      <NumberField
+        name="assemblyMinutes"
+        label="Armado y post-proceso"
+        defaultValue={item?.assemblyMinutes ?? 0}
+        suffix="min"
+        hint="Por unidad. Se cobra a la hora de armado de Parámetros."
+      />
+      <NumberField
+        name="designHours"
+        label="Diseño / modelado"
+        defaultValue={item?.designHours ?? 0}
+        suffix="h"
+        hint="Una sola vez para el pedido, no por unidad."
       />
       <NumberField
         name="extraSuppliesArs"

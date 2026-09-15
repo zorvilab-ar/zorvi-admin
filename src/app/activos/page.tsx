@@ -4,7 +4,14 @@ import { fmtArs, fmtArsDec, fmtNum, fmtUsd, fmtDate } from "@/lib/format";
 import { PageHeader, Kpi, EmptyState } from "@/components/shared";
 import { FormSheet } from "@/components/form-sheet";
 import { ConfirmDelete } from "@/components/confirm-delete";
-import { TextField, NumberField, DateField } from "@/components/fields";
+import {
+  TextField,
+  NumberField,
+  DateField,
+  SelectField,
+  CheckboxField,
+} from "@/components/fields";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -19,28 +26,62 @@ export const dynamic = "force-dynamic";
 
 function AssetFields({
   a,
+  partners,
 }: {
   a?: {
     id: number;
     code: string;
     name: string;
+    type: string;
     purchaseDate: string | null;
     costArs: number;
     usefulLifeHours: number;
     residualArs: number;
     notes: string | null;
   };
+  partners?: { id: number; name: string }[];
 }) {
   return (
     <>
       {a && <input type="hidden" name="id" value={a.id} />}
       <TextField name="code" label="Código" defaultValue={a?.code} required placeholder="IMP-002" hint="IMP-001, IMP-002… para impresoras; HERR-001 para herramientas." />
       <TextField name="name" label="Nombre del activo" defaultValue={a?.name} required placeholder="Bambu Lab A1" />
+      <SelectField
+        name="type"
+        label="Tipo de activo"
+        defaultValue={a?.type ?? "Impresora"}
+        options={[
+          { value: "Impresora", label: "Impresora — imprime y se desgasta por hora" },
+          { value: "Herramienta", label: "Herramienta — pinzas, soplador, llaves" },
+          { value: "Otro", label: "Otro" },
+        ]}
+        required
+        hint="Solo las impresoras aparecen en Producción y suman desgaste al costo de cada lámpara."
+      />
       <DateField name="purchaseDate" label="Fecha de compra" defaultValue={a?.purchaseDate} />
       <NumberField name="costArs" label="Costo" defaultValue={a?.costArs} suffix="ARS" required />
       <NumberField name="usefulLifeHours" label="Vida útil" defaultValue={a?.usefulLifeHours ?? 5000} suffix="horas" hint="Para una Bambu A1: entre 4.000 y 8.000 horas." />
       <NumberField name="residualArs" label="Valor residual" defaultValue={a?.residualArs ?? 0} suffix="ARS" hint="Lo que valdría al final de su vida útil. 0 si no sabés." />
       <TextField name="notes" label="Notas" defaultValue={a?.notes} />
+      {partners && (
+        <>
+          <CheckboxField
+            name="registerPurchase"
+            label="Registrar también la compra"
+            defaultChecked
+            hint="Deja el asiento del otro lado: sin esto el activo entra al inventario pero nunca sale de la caja."
+          />
+          <SelectField
+            name="paidBy"
+            label="¿Quién lo pagó?"
+            options={[
+              { value: "Caja", label: "Caja del negocio" },
+              ...partners.map((p) => ({ value: p.name, label: p.name })),
+            ]}
+            placeholder="Elegir…"
+          />
+        </>
+      )}
     </>
   );
 }
@@ -61,8 +102,9 @@ export default async function ActivosPage() {
       action={createAsset}
       triggerLabel="Nuevo activo"
       successMessage="Activo agregado"
+      wide
     >
-      <AssetFields />
+      <AssetFields partners={data.partners} />
     </FormSheet>
   );
 
@@ -80,7 +122,7 @@ export default async function ActivosPage() {
         <Kpi
           label="Amortización por hora"
           value={fmtArsDec(totalAmortPerHour(data.assets))}
-          hint="Se suma sola al costo de cada lámpara"
+          hint="Se suma sola al costo de cada lámpara. Solo cuentan las impresoras."
         />
       </div>
 
@@ -98,6 +140,7 @@ export default async function ActivosPage() {
                 <TableRow>
                   <TableHead>Código</TableHead>
                   <TableHead>Activo</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Compra</TableHead>
                   <TableHead className="text-right">Costo</TableHead>
                   <TableHead className="text-right">Vida útil</TableHead>
@@ -115,6 +158,17 @@ export default async function ActivosPage() {
                     <TableRow key={a.id}>
                       <TableCell className="font-mono text-xs">{a.code}</TableCell>
                       <TableCell className="font-bold">{a.name}</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={`text-[11px] ${
+                            a.type === "Impresora"
+                              ? "bg-[#5B7FB5] text-white"
+                              : "bg-muted"
+                          }`}
+                        >
+                          {a.type}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-xs">{fmtDate(a.purchaseDate)}</TableCell>
                       <TableCell className="text-right tabular-nums">{fmtArs(a.costArs)}</TableCell>
                       <TableCell className="text-right tabular-nums">{fmtNum(a.usefulLifeHours)} h</TableCell>
@@ -128,6 +182,8 @@ export default async function ActivosPage() {
                           action={updateAsset}
                           successMessage="Activo actualizado"
                         >
+                          {/* Sin `partners`: la compra se ofrece solo en el
+                              alta, para no duplicar el asiento al editar. */}
                           <AssetFields a={a} />
                         </FormSheet>
                         <ConfirmDelete action={deleteAsset} id={a.id} what={`el activo ${a.code} (${a.name})`} />

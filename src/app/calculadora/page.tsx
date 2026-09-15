@@ -1,4 +1,10 @@
-import { loadAll, filamentPricePerKg, mercadoLibreChannel, assetAmortPerHour } from "@/lib/calc";
+import {
+  loadAll,
+  filamentPricePerKg,
+  mercadoLibreChannel,
+  assetAmortPerHour,
+  printerAssets,
+} from "@/lib/calc";
 import { PageHeader } from "@/components/shared";
 import { CalculatorForm } from "./calculator-form";
 
@@ -13,7 +19,8 @@ export default async function CalculadoraPage() {
       name: `${s.code} — ${s.name}`,
       pricePerKg: filamentPricePerKg(s),
     }));
-  const assets = data.assets.map((a) => ({
+  // Solo impresoras: el desgaste por hora de impresión es de la máquina que imprime.
+  const assets = printerAssets(data.assets).map((a) => ({
     id: a.id,
     name: `${a.code} — ${a.name}`,
     amortPerHour: assetAmortPerHour(a),
@@ -35,6 +42,8 @@ export default async function CalculadoraPage() {
         kwhPrice={data.settings.kwhPrice}
         failureRate={data.settings.failureRate}
         targetMargin={data.settings.targetMargin}
+        assemblyRate={data.settings.assemblyRate}
+        designRate={data.settings.designRate}
         marketCommission={ml?.commission ?? 0.13}
         marketFixed={ml?.fixedCost ?? 0}
       />

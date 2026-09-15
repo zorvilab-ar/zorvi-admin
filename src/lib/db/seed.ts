@@ -85,6 +85,7 @@ async function main() {
   await db.insert(assets).values({
     code: "IMP-001",
     name: "Bambu Lab A1 Combo (con AMS lite)",
+    type: "Impresora",
     purchaseDate: "2026-09-02",
     costArs: 1465000,
     usefulLifeHours: 5000,

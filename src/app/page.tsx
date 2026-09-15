@@ -36,6 +36,20 @@ export default async function TableroPage() {
         description="Todo automático. Estos son los números que hay que mirar cada mes."
       />
 
+      {d.assetsUnbooked > 0 && (
+        <Alert className="mb-5 border-[#E0883A]">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>El saldo de caja está inflado en {fmtArs(d.assetsUnbooked)}</AlertTitle>
+          <AlertDescription>
+            Hay {fmtArs(d.assetInvestment)} en activos pero solo{" "}
+            {fmtArs(d.assetPurchases)} cargados como compra, así que esa plata
+            entró a la caja y nunca salió. Registrá la compra que falta en{" "}
+            <a href="/compras" className="underline">Compras y gastos</a> (tipo
+            Activo) y el saldo se acomoda.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <SectionTitle>1 · Inversión y capital</SectionTitle>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Inversión en activos" value={fmtArs(d.assetInvestment)} hint={fmtUsd(d.assetInvestmentUsd)} />
@@ -44,8 +58,12 @@ export default async function TableroPage() {
         <Kpi
           label="Saldo de caja"
           value={fmtArs(d.cashBalance)}
-          tone={d.cashBalance < 0 ? "negative" : "neutral"}
-          hint="Cobrado menos pagado, acumulado"
+          tone={d.cashBalance < 0 ? "negative" : d.assetsUnbooked > 0 ? "negative" : "neutral"}
+          hint={
+            d.assetsUnbooked > 0
+              ? `Ojo: ${fmtArs(d.assetsUnbooked)} de activos sin su compra`
+              : "Cobrado menos pagado, acumulado"
+          }
         />
       </div>
 

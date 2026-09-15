@@ -1,10 +1,17 @@
-import { loadAll } from "@/lib/calc";
-import { createProductionRun, deleteProductionRun } from "@/lib/actions";
+import { loadAll, printerAssets } from "@/lib/calc";
+import {
+  createProductionRun,
+  updateProductionRun,
+  deleteProductionRun,
+} from "@/lib/actions";
 import { fmtNum, fmtPct, fmtDate } from "@/lib/format";
 import { PageHeader, Kpi, EmptyState } from "@/components/shared";
 import { FormSheet } from "@/components/form-sheet";
 import { ConfirmDelete } from "@/components/confirm-delete";
-import { TextField, NumberField, DateField, SelectField } from "@/components/fields";
+import { TextField, DateField } from "@/components/fields";
+import { ProductionFields } from "@/components/production-fields";
+import { SlicerImport } from "@/components/slicer-import";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -30,6 +37,46 @@ export default async function ProduccionPage() {
   const totalGrams = runs.reduce((a, r) => a + r.gramsReal, 0);
   const today = new Date().toISOString().slice(0, 10);
 
+  const printers = printerAssets(data.assets);
+  const filaments = data.supplies.filter((s) => s.category === "Filamento");
+
+  // Lo que la receta dice que sale por unidad: gramos de filamento (con su
+  // desperdicio) y el rollo que corresponde. Si el producto no tiene receta
+  // de filamento, cae en los gramos del slicer cargados en la ficha.
+  const estimates = data.products.map((p) => {
+    const filamentLines = data.recipeItems.filter((ri) => {
+      const s = data.supplies.find((x) => x.id === ri.supplyId);
+      return ri.productId === p.id && s?.category === "Filamento";
+    });
+    const recipeGrams = filamentLines.reduce(
+      (a, ri) => a + ri.qty * (1 + ri.wastePct),
+      0,
+    );
+    return {
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      printHours: p.printHours,
+      grams: recipeGrams > 0 ? recipeGrams : p.grams,
+      filamentSupplyId: filamentLines[0]?.supplyId ?? null,
+    };
+  });
+
+  const fields = (run?: (typeof runs)[number]) => (
+    <>
+      {run && <input type="hidden" name="id" value={run.id} />}
+      <DateField name="date" label="Fecha" defaultValue={run?.date ?? today} required />
+      <SlicerImport printHoursField="hoursReal" gramsField="gramsReal" />
+      <ProductionFields
+        products={estimates}
+        filaments={filaments.map((s) => ({ id: s.id, label: `${s.code} — ${s.name}` }))}
+        printers={printers.map((a) => ({ id: a.id, label: `${a.code} — ${a.name}` }))}
+        run={run}
+      />
+      <TextField name="notes" label="Notas" defaultValue={run?.notes} />
+    </>
+  );
+
   const addSheet = (
     <FormSheet
       title="Registrar tanda de impresión"
@@ -37,32 +84,9 @@ export default async function ProduccionPage() {
       action={createProductionRun}
       triggerLabel="Nueva tanda"
       successMessage="Tanda registrada. El stock ya se actualizó."
+      wide
     >
-      <DateField name="date" label="Fecha" defaultValue={today} required />
-      <SelectField
-        name="productId"
-        label="Producto"
-        options={data.products.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
-        placeholder="¿Qué se imprimió?"
-        required
-      />
-      <NumberField name="unitsOk" label="Unidades que salieron bien" required hint="Van directo al stock de terminados." />
-      <NumberField name="unitsFailed" label="Unidades falladas" defaultValue={0} hint="Impresiones tiradas. Sirve para comparar con la tasa de fallas estimada." />
-      <NumberField name="hoursReal" label="Horas reales de impresión" suffix="h" hint="Las de la pantalla de la impresora. Suman al desgaste de la máquina." />
-      <NumberField name="gramsReal" label="Filamento consumido" suffix="g" hint="Incluida la purga. Se descuenta del stock del filamento elegido abajo." />
-      <SelectField
-        name="filamentSupplyId"
-        label="Filamento usado"
-        options={data.supplies.filter((s) => s.category === "Filamento").map((s) => ({ value: s.id, label: `${s.code} — ${s.name}` }))}
-        placeholder="Elegir filamento…"
-      />
-      <SelectField
-        name="assetId"
-        label="Impresora"
-        options={data.assets.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` }))}
-        placeholder="¿En qué equipo?"
-      />
-      <TextField name="notes" label="Notas" />
+      {fields()}
     </FormSheet>
   );
 
@@ -73,6 +97,16 @@ export default async function ProduccionPage() {
         description="Cada tanda impresa. Alimenta el stock, las horas de la máquina y muestra el desvío contra lo estimado."
         actions={addSheet}
       />
+
+      {printers.length === 0 && data.assets.length > 0 && (
+        <Alert className="mb-5">
+          <AlertDescription>
+            Ningún activo está marcado como <strong>Impresora</strong>, así que el
+            selector de equipo va a salir vacío. Marcá el tipo en{" "}
+            <a href="/activos" className="underline">Activos</a>.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Unidades OK" value={fmtNum(totalOk)} />
@@ -108,7 +142,7 @@ export default async function ProduccionPage() {
                   <TableHead className="text-right">Gramos</TableHead>
                   <TableHead>Filamento</TableHead>
                   <TableHead>Equipo</TableHead>
-                  <TableHead className="w-12" />
+                  <TableHead className="w-20" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -133,7 +167,17 @@ export default async function ProduccionPage() {
                       <TableCell className="text-right tabular-nums">{fmtNum(r.gramsReal)}</TableCell>
                       <TableCell className="text-xs">{r.filamentSupplyId ? suppliesById.get(r.filamentSupplyId)?.code : "—"}</TableCell>
                       <TableCell className="text-xs">{r.assetId ? assetsById.get(r.assetId)?.code : "—"}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right whitespace-nowrap">
+                        <FormSheet
+                          mode="edit"
+                          title={`Editar la tanda del ${fmtDate(r.date)}`}
+                          description="Corregir los gramos acomoda el stock de rollos: se devuelve lo anterior y se descuenta lo nuevo."
+                          action={updateProductionRun}
+                          successMessage="Tanda actualizada"
+                          wide
+                        >
+                          {fields(r)}
+                        </FormSheet>
                         <ConfirmDelete action={deleteProductionRun} id={r.id} what={`la tanda del ${fmtDate(r.date)}`} />
                       </TableCell>
                     </TableRow>

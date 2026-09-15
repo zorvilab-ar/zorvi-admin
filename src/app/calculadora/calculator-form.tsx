@@ -23,6 +23,8 @@ export function CalculatorForm({
   kwhPrice,
   failureRate,
   targetMargin,
+  assemblyRate,
+  designRate,
   marketCommission,
   marketFixed,
 }: {
@@ -32,6 +34,8 @@ export function CalculatorForm({
   kwhPrice: number;
   failureRate: number;
   targetMargin: number;
+  assemblyRate: number;
+  designRate: number;
   marketCommission: number;
   marketFixed: number;
 }) {
@@ -48,6 +52,10 @@ export function CalculatorForm({
   const [hours, setHours] = React.useState(8);
   const [qty, setQty] = React.useState(1);
   const [extras, setExtras] = React.useState(0);
+  const [assemblyMin, setAssemblyMin] = React.useState(0);
+  const [designHours, setDesignHours] = React.useState(0);
+  const [assemblyPrice, setAssemblyPrice] = React.useState(assemblyRate);
+  const [designPrice, setDesignPrice] = React.useState(designRate);
 
   const filament = filaments.find((f) => f.id === filamentId);
   const asset = assets.find((a) => a.id === assetId);
@@ -59,6 +67,10 @@ export function CalculatorForm({
     qty,
     filamentPricePerKg: pricePerKg,
     extraSuppliesArs: extras,
+    assemblyMinutes: assemblyMin,
+    designHours,
+    assemblyRate: assemblyPrice,
+    designRate: designPrice,
     failureRate: failPct / 100,
     printerWatts: watts,
     kwhPrice: kwh,
@@ -98,6 +110,42 @@ export function CalculatorForm({
               value={extras}
               onChange={setExtras}
               hint="Por unidad. Portalámparas, cable, caja…"
+            />
+          </div>
+
+          <div className="border-t-2 border-border pt-4">
+            <h2 className="font-display text-lg tracking-wide">Mano de obra</h2>
+            <p className="text-xs font-semibold text-muted-foreground">
+              Las horas que ponés vos. El armado se cobra por pieza; el diseño,
+              una sola vez para todo el pedido.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Num
+              label="Armado y post-proceso"
+              suffix="min"
+              value={assemblyMin}
+              onChange={setAssemblyMin}
+              hint="Por unidad: lijado, pegado, cableado, prueba."
+            />
+            <Num
+              label="Valor de la hora de armado"
+              suffix="ARS"
+              value={assemblyPrice}
+              onChange={setAssemblyPrice}
+            />
+            <Num
+              label="Diseño / modelado"
+              suffix="h"
+              value={designHours}
+              onChange={setDesignHours}
+              hint="Una sola vez para el pedido, no por unidad."
+            />
+            <Num
+              label="Valor de la hora de diseño"
+              suffix="ARS"
+              value={designPrice}
+              onChange={setDesignPrice}
             />
           </div>
 
@@ -181,6 +229,17 @@ export function CalculatorForm({
           <Row label="Material" value={fmtArs(cost.material)} />
           <Row label="Luz" value={fmtArs(cost.energy)} />
           <Row label="Desgaste de máquina" value={fmtArs(cost.wear)} />
+          {cost.labor > 0 && (
+            <Row
+              label="Mano de obra"
+              value={fmtArs(cost.labor)}
+              hint={
+                cost.assembly > 0 && cost.design > 0
+                  ? `${fmtArs(cost.assembly)} de armado + ${fmtArs(cost.design)} de diseño`
+                  : undefined
+              }
+            />
+          )}
           <Row
             label={`Fallas (${fmtPct(failPct / 100)})`}
             value={fmtArs(cost.errorMargin)}
@@ -254,7 +313,11 @@ function Row({
         </span>
       </div>
       {hint && (
-        <p className="text-[11px] font-semibold text-primary">{hint}</p>
+        <p
+          className={`text-[11px] font-semibold ${warn ? "text-primary" : "text-muted-foreground"}`}
+        >
+          {hint}
+        </p>
       )}
     </div>
   );

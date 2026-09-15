@@ -149,6 +149,10 @@ export const channelSchema = z.object({
 const assetFields = {
   code: fdReqText("El código"),
   name: fdReqText("El nombre"),
+  type: fdEnum(["Impresora", "Herramienta", "Otro"], {
+    def: "Impresora",
+    label: "El tipo",
+  }),
   purchaseDate: fdText,
   costArs: fdNumber(),
   usefulLifeHours: fdNumber(5000),
@@ -157,6 +161,16 @@ const assetFields = {
 };
 export const assetCreateSchema = z.object(assetFields);
 export const assetUpdateSchema = z.object({ id: fdId, ...assetFields });
+
+/**
+ * Alta de activo: opción de registrar también la compra. Sin este asiento el
+ * activo sale del inventario pero nunca de la caja, que es de dónde salía el
+ * saldo inflado del Tablero.
+ */
+export const assetPurchaseSchema = z.object({
+  registerPurchase: fdCheckbox,
+  paidBy: fdText,
+});
 
 const fixedCostFields = {
   concept: fdReqText("El concepto"),
@@ -223,7 +237,7 @@ export const recipeItemUpdateSchema = z.object({
   note: fdText,
 });
 
-export const productionRunCreateSchema = z.object({
+const productionRunFields = {
   date: fdReqText("La fecha"),
   productId: fdId,
   unitsOk: fdNumber(),
@@ -233,9 +247,14 @@ export const productionRunCreateSchema = z.object({
   filamentSupplyId: fdOptId,
   assetId: fdOptId,
   notes: fdText,
+};
+export const productionRunCreateSchema = z.object(productionRunFields);
+export const productionRunUpdateSchema = z.object({
+  id: fdId,
+  ...productionRunFields,
 });
 
-export const saleCreateSchema = z.object({
+const saleFields = {
   date: fdReqText("La fecha"),
   receipt: fdText,
   customer: fdText,
@@ -253,9 +272,11 @@ export const saleCreateSchema = z.object({
   collectionDate: fdText,
   invoiced: fdCheckbox,
   notes: fdText,
-});
+};
+export const saleCreateSchema = z.object(saleFields);
+export const saleUpdateSchema = z.object({ id: fdId, ...saleFields });
 
-export const purchaseCreateSchema = z.object({
+const purchaseFields = {
   date: fdReqText("La fecha"),
   supplier: fdText,
   type: fdEnum(["Insumo", "Costo fijo", "Activo", "Otro"], {
@@ -275,15 +296,36 @@ export const purchaseCreateSchema = z.object({
   paymentDate: fdText,
   receipt: fdText,
   notes: fdText,
+};
+
+/**
+ * Los dos checkboxes del drawer de compras no son columnas de `purchases`:
+ * disparan efectos en otras tablas. Van aparte para que el `values()` de la
+ * compra no reciba campos que no existen en el schema.
+ */
+export const purchaseEffectsSchema = z.object({
+  updateSupplyCost: fdCheckbox,
+  registerContribution: fdCheckbox,
 });
 
-export const partnerMovementCreateSchema = z.object({
+export const purchaseCreateSchema = z.object(purchaseFields);
+export const purchaseUpdateSchema = z.object({ id: fdId, ...purchaseFields });
+
+/** Compra ya validada: lo que reciben los efectos sobre insumo y socio. */
+export type PurchaseInput = z.infer<typeof purchaseCreateSchema>;
+
+const partnerMovementFields = {
   date: fdReqText("La fecha"),
   partnerId: fdId,
   type: fdEnum(["Aporte", "Retiro"], { label: "El tipo" }),
   amountArs: fdNumber(),
   paymentMethod: fdText,
   notes: fdText,
+};
+export const partnerMovementCreateSchema = z.object(partnerMovementFields);
+export const partnerMovementUpdateSchema = z.object({
+  id: fdId,
+  ...partnerMovementFields,
 });
 
 export const quoteCreateSchema = z.object({
@@ -307,6 +349,8 @@ const quoteItemFields = {
   qty: fdNumber(),
   printHours: fdNumber(),
   grams: fdNumber(),
+  assemblyMinutes: fdNumber(),
+  designHours: fdNumber(),
   filamentSupplyId: fdOptId,
   extraSuppliesArs: fdNumber(),
   note: fdText,

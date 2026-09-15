@@ -19,9 +19,13 @@ export function MobileNav() {
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
 
-  React.useEffect(() => {
+  // Navegar cierra el menú. Se ajusta durante el render en vez de en un
+  // efecto: el efecto provocaba un render extra con el panel todavía abierto.
+  const [lastPath, setLastPath] = React.useState(pathname);
+  if (pathname !== lastPath) {
+    setLastPath(pathname);
     setOpen(false);
-  }, [pathname]);
+  }
 
   return (
     <header className="sticky top-0 z-40 flex w-full items-center gap-3 border-b-3 border-border bg-sidebar px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] md:hidden">
