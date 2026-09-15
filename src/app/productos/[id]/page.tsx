@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { loadAll, allProductCosts, channelPrices, unitCost } from "@/lib/calc";
+import { loadProducto } from "@/lib/views/client";
 import {
   updateProduct,
   createRecipeItem,
@@ -34,19 +34,15 @@ export default async function ProductoDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const data = await loadAll();
-  const product = data.products.find((p) => p.id === Number(id));
-  if (!product) notFound();
+  // Ficha de costo, receta valorizada y precios por canal: todo del backend.
+  const vista = await loadProducto(Number(id));
+  if (!vista) notFound();
 
-  const costs = allProductCosts(data);
-  const c = costs.get(product.id)!;
-  const recipe = data.recipeItems.filter((r) => r.productId === product.id);
-  const suppliesById = new Map(data.supplies.map((s) => [s.id, s]));
-  const prices = channelPrices(c, product.listPrice, data.channels, data.settings);
+  const { producto: product, costo: c, receta: recipe, precios: prices, settings, insumos } = vista;
 
-  const supplyOptions = data.supplies.map((s) => ({
+  const supplyOptions = insumos.map((s) => ({
     value: s.id,
-    label: `${s.code} — ${s.name} (${fmtArsDec(unitCost(s))}/${s.unit})`,
+    label: `${s.code} — ${s.name} (${fmtArsDec(s.unitCost)}/${s.unit})`,
   }));
 
   const costRows: { label: string; value: number; strong?: boolean }[] = [
@@ -58,7 +54,7 @@ export default async function ProductoDetailPage({
     { label: "Desgaste de máquina", value: c.amortization },
     { label: "Mano de obra (armado)", value: c.labor },
     { label: "Subtotal", value: c.subtotal, strong: true },
-    { label: `Ajuste por fallas (${fmtPct(data.settings.failureRate)})`, value: c.failureAdj },
+    { label: `Ajuste por fallas (${fmtPct(settings.failureRate)})`, value: c.failureAdj },
     { label: "COSTO VARIABLE", value: c.variableCost, strong: true },
     { label: "Costos fijos asignados", value: c.fixedAllocated },
     { label: "COSTO TOTAL", value: c.totalCost, strong: true },
@@ -122,7 +118,7 @@ export default async function ProductoDetailPage({
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Costo variable" value={fmtArs(c.variableCost)} hint="El piso absoluto del precio" />
         <Kpi label="Costo total" value={fmtArs(c.totalCost)} hint="Con la parte de costos fijos" />
-        <Kpi label="Precio sugerido" value={fmtArs(c.suggestedPrice)} hint={`Para un margen de ${fmtPct(data.settings.targetMargin)}`} />
+        <Kpi label="Precio sugerido" value={fmtArs(c.suggestedPrice)} hint={`Para un margen de ${fmtPct(settings.targetMargin)}`} />
         <Kpi
           label="Ganancia por unidad"
           value={product.listPrice > 0 ? fmtArs(c.unitResult) : "—"}
@@ -166,8 +162,8 @@ export default async function ProductoDetailPage({
                 </TableHeader>
                 <TableBody>
                   {prices.map((p) => (
-                    <TableRow key={p.channel.id}>
-                      <TableCell className="font-bold">{p.channel.name}</TableCell>
+                    <TableRow key={p.channelId}>
+                      <TableCell className="font-bold">{p.channelName}</TableCell>
                       <TableCell className="text-right tabular-nums">{fmtArs(p.suggestedPrice)}</TableCell>
                       <TableCell
                         className={`text-right font-bold tabular-nums ${
@@ -218,30 +214,29 @@ export default async function ProductoDetailPage({
               </TableHeader>
               <TableBody>
                 {recipe.map((r) => {
-                  const s = suppliesById.get(r.supplyId);
-                  if (!s) return null;
-                  const line = r.qty * unitCost(s) * (1 + r.wastePct);
+                  if (!r.supplyCode) return null;
+                  const line = r.lineCost;
                   return (
                     <TableRow key={r.id}>
-                      <TableCell className="font-mono text-xs">{s.code}</TableCell>
-                      <TableCell className="font-bold">{s.name}</TableCell>
-                      <TableCell className="text-xs font-semibold">{s.category}</TableCell>
+                      <TableCell className="font-mono text-xs">{r.supplyCode}</TableCell>
+                      <TableCell className="font-bold">{r.supplyName}</TableCell>
+                      <TableCell className="text-xs font-semibold">{r.supplyCategory}</TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {fmtNum(r.qty)} {s.unit}
+                        {fmtNum(r.qty)} {r.supplyUnit}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtArsDec(unitCost(s))}</TableCell>
+                      <TableCell className="text-right tabular-nums">{fmtArsDec(r.unitCost)}</TableCell>
                       <TableCell className="text-right tabular-nums">{fmtPct(r.wastePct)}</TableCell>
                       <TableCell className="text-right font-bold tabular-nums">{fmtArsDec(line)}</TableCell>
                       <TableCell className="text-xs font-semibold text-muted-foreground">{r.note}</TableCell>
                       <TableCell className="text-right whitespace-nowrap">
-                        <FormSheet mode="edit" title={`Editar línea: ${s.name}`} action={updateRecipeItem} successMessage="Receta actualizada">
+                        <FormSheet mode="edit" title={`Editar línea: ${r.supplyName}`} action={updateRecipeItem} successMessage="Receta actualizada">
                           <input type="hidden" name="id" value={r.id} />
                           <SelectField name="supplyId" label="Insumo" defaultValue={r.supplyId} options={supplyOptions} required />
                           <NumberField name="qty" label="Cantidad" defaultValue={r.qty} required />
                           <NumberField name="wastePct" label="Merma" defaultValue={r.wastePct * 100} suffix="%" />
                           <TextField name="note" label="Nota" defaultValue={r.note} />
                         </FormSheet>
-                        <ConfirmDelete action={deleteRecipeItem} id={r.id} what={`la línea de ${s.name}`} />
+                        <ConfirmDelete action={deleteRecipeItem} id={r.id} what={`la línea de ${r.supplyName}`} />
                       </TableCell>
                     </TableRow>
                   );

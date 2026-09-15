@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { assertAdmin } from "@/lib/auth/session";
 import { parseForm, shopListingSchema, ValidationError } from "@/lib/validation";
-import { loadAll, productStocks } from "@/lib/calc";
+import { loadAll } from "@/lib/calc";
+import { loadTiendaAdmin } from "@/lib/views/client";
 import { parseSizes, parseColors } from "./parse";
 import {
   putListings,
@@ -25,8 +26,8 @@ export async function publishListing(fd: FormData) {
   await assertAdmin();
   const data = parseForm(shopListingSchema, fd);
 
-  const all = await loadAll();
-  const producto = all.products.find((p) => p.code === data.code);
+  const { productos } = await loadTiendaAdmin();
+  const producto = productos.find((p) => p.code === data.code);
   if (!producto) {
     throw new ValidationError(`No existe el producto ${data.code} en el catálogo.`);
   }
@@ -35,8 +36,6 @@ export async function publishListing(fd: FormData) {
       `${data.code} no tiene precio de lista. Cargalo en Productos antes de publicarlo.`,
     );
   }
-
-  const stock = productStocks(all).find((s) => s.product.code === data.code);
 
   try {
     await putListings([
@@ -50,7 +49,7 @@ export async function publishListing(fd: FormData) {
         category: data.category,
         // El precio y el stock son del admin: la tienda no los inventa.
         price: producto.listPrice,
-        disponible: Math.max(0, stock?.current ?? 0),
+        disponible: Math.max(0, producto.stock),
         badge: data.badge ?? undefined,
         image: data.image ?? undefined,
         lampType: data.lampType ?? undefined,
@@ -78,8 +77,8 @@ export async function syncListings(fd: FormData) {
   const codes = String(fd.get("codes") ?? "").split(",").filter(Boolean);
   if (codes.length === 0) return;
 
-  const all = await loadAll();
-  const stocks = new Map(productStocks(all).map((s) => [s.product.code, s.current]));
+  const { productos } = await loadTiendaAdmin();
+  const porCodigo = new Map(productos.map((p) => [p.code, p]));
   const actuales: ListingTienda[] = JSON.parse(String(fd.get("listings") ?? "[]"));
 
   try {
@@ -87,11 +86,11 @@ export async function syncListings(fd: FormData) {
       actuales
         .filter((l) => codes.includes(l.code))
         .map((l) => {
-          const p = all.products.find((x) => x.code === l.code);
+          const p = porCodigo.get(l.code);
           return {
             ...l,
             price: p?.listPrice ?? l.price,
-            disponible: Math.max(0, stocks.get(l.code) ?? 0),
+            disponible: Math.max(0, p?.stock ?? 0),
             engraving: l.engraving ?? undefined,
             subtitle: l.subtitle ?? undefined,
             description: l.description ?? undefined,
@@ -177,17 +176,18 @@ export async function importarPedidos(fd: FormData) {
     }
   });
 
-  // Recién ahora, con las ventas ya asentadas, se le avisa a la tienda.
-  const stocks = productStocks(await loadAll());
+  // Recién ahora, con las ventas ya asentadas, se le pide el stock fresco al
+  // backend y se le avisa a la tienda.
+  const { productos: frescos } = await loadTiendaAdmin();
   const codigos = new Set(
     pedidos.filter((p) => numeros.includes(p.number)).flatMap((p) => p.items.map((i) => i.code)),
   );
   try {
     await postPedidosImportados(
       numeros,
-      stocks
-        .filter((s) => codigos.has(s.product.code))
-        .map((s) => ({ code: s.product.code, disponible: Math.max(0, s.current) })),
+      frescos
+        .filter((p) => codigos.has(p.code))
+        .map((p) => ({ code: p.code, disponible: Math.max(0, p.stock) })),
     );
   } catch (e) {
     if (e instanceof ShopError) {

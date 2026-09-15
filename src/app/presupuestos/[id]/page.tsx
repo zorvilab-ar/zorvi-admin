@@ -1,11 +1,5 @@
 import { notFound } from "next/navigation";
-import {
-  loadAll,
-  quoteItemCost,
-  mercadoLibreChannel,
-  totalAmortPerHour,
-  filamentPricePerKg,
-} from "@/lib/calc";
+import { loadPresupuesto } from "@/lib/views/client";
 import {
   updateQuote,
   createQuoteItem,
@@ -148,29 +142,18 @@ export default async function PresupuestoDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const data = await loadAll();
-  const quote = data.quotes.find((q) => q.id === Number(id));
-  if (!quote) notFound();
+  // El costeo de cada pieza viene hecho del backend.
+  const vista = await loadPresupuesto(Number(id));
+  if (!vista) notFound();
 
-  const items = data.quoteItems.filter((i) => i.quoteId === quote.id);
-  const suppliesById = new Map(data.supplies.map((s) => [s.id, s]));
-  const amort = totalAmortPerHour(data.assets);
-  const ml = mercadoLibreChannel(data.channels);
-  const comm = ml?.commission ?? 0.13;
-  const fixed = ml?.fixedCost ?? 0;
-  const filaments = data.supplies.filter((s) => s.category === "Filamento");
-  const filamentOptions = filaments.map((s) => ({
+  const { presupuesto: quote, items: lines, filamentos, marketCommission: comm } = vista;
+  const filamentOptions = filamentos.map((s) => ({
     value: s.id,
-    label: `${s.code} — ${s.name} (${fmtArs(filamentPricePerKg(s))}/kg)`,
+    label: `${s.code} — ${s.name} (${fmtArs(s.pricePerKg)}/kg)`,
   }));
-
-  const lines = items.map((item) => ({
-    item,
-    cost: quoteItemCost(item, suppliesById, data.settings, amort, comm, fixed),
-  }));
-  const totalCharge = lines.reduce((a, l) => a + l.cost.charge, 0);
-  const totalCost = lines.reduce((a, l) => a + l.cost.totalCost, 0);
-  const totalMarket = lines.reduce((a, l) => a + l.cost.market, 0);
+  const totalCharge = lines.reduce((a, l) => a + l.costo.charge, 0);
+  const totalCost = lines.reduce((a, l) => a + l.costo.totalCost, 0);
+  const totalMarket = lines.reduce((a, l) => a + l.costo.market, 0);
 
   const editSheet = (
     <FormSheet
@@ -245,7 +228,7 @@ export default async function PresupuestoDetailPage({
       </div>
 
       <SectionTitle>Piezas</SectionTitle>
-      {items.length === 0 ? (
+      {lines.length === 0 ? (
         <EmptyState
           title="Este presupuesto no tiene piezas"
           helper="Agregá cada pieza con gramos, horas y filamento. El total a cobrar se arma solo."
@@ -269,9 +252,9 @@ export default async function PresupuestoDetailPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lines.map(({ item, cost }) => {
-                  const supply = item.filamentSupplyId
-                    ? suppliesById.get(item.filamentSupplyId)
+                {lines.map(({ item, costo: cost, filamentName }) => {
+                  const supply = filamentName
+                    ? { name: filamentName }
                     : undefined;
                   return (
                     <TableRow key={item.id}>

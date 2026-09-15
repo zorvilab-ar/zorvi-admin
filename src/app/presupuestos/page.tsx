@@ -1,9 +1,4 @@
-import {
-  loadAll,
-  quoteItemCost,
-  mercadoLibreChannel,
-  totalAmortPerHour,
-} from "@/lib/calc";
+import { loadPresupuestos } from "@/lib/views/client";
 import { createQuote, deleteQuote } from "@/lib/actions";
 import { fmtArs, fmtDate } from "@/lib/format";
 import { PageHeader, EmptyState } from "@/components/shared";
@@ -31,13 +26,9 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export default async function PresupuestosPage() {
-  const data = await loadAll();
+  // Cada presupuesto ya viene con su total costeado.
+  const { presupuestos } = await loadPresupuestos();
   const today = new Date().toISOString().slice(0, 10);
-  const suppliesById = new Map(data.supplies.map((s) => [s.id, s]));
-  const amort = totalAmortPerHour(data.assets);
-  const ml = mercadoLibreChannel(data.channels);
-  const comm = ml?.commission ?? 0.13;
-  const fixed = ml?.fixedCost ?? 0;
 
   const addSheet = (
     <FormSheet
@@ -66,7 +57,7 @@ export default async function PresupuestosPage() {
         actions={addSheet}
       />
 
-      {data.quotes.length === 0 ? (
+      {presupuestos.length === 0 ? (
         <EmptyState
           title="Todavía no hay presupuestos"
           helper="Creá uno con el nombre del cliente y cargale las piezas: gramos, horas y filamento."
@@ -87,24 +78,11 @@ export default async function PresupuestosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.quotes
+                {presupuestos
                   .slice()
                   .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)
                   .map((q) => {
-                    const items = data.quoteItems.filter((i) => i.quoteId === q.id);
-                    const total = items.reduce(
-                      (acc, item) =>
-                        acc +
-                        quoteItemCost(
-                          item,
-                          suppliesById,
-                          data.settings,
-                          amort,
-                          comm,
-                          fixed,
-                        ).charge,
-                      0,
-                    );
+                    const total = q.total;
                     return (
                       <TableRow key={q.id}>
                         <TableCell className="text-xs">{fmtDate(q.date)}</TableCell>
@@ -124,7 +102,7 @@ export default async function PresupuestosPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {items.length}
+                          {q.items}
                         </TableCell>
                         <TableCell className="text-right font-display tabular-nums">
                           {fmtArs(total)}

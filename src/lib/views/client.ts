@@ -210,12 +210,12 @@ export const loadProducto = cache((id: number) =>
       supplyUnit: string | null; supplyCategory: string | null;
       unitCost: number; lineCost: number;
     }[];
-    insumos: { id: number; code: string; name: string; unit: string }[];
+    insumos: { id: number; code: string; name: string; unit: string; unitCost: number }[];
     precios: {
       channelId: number; channelName: string;
       suggestedPrice: number; netMarginAtList: number;
     }[];
-    settings: { targetMargin: number; defaultWaste: number };
+    settings: { targetMargin: number; defaultWaste: number; failureRate: number };
   } | null>(`producto/${id}`),
 );
 
@@ -314,7 +314,8 @@ export const loadPresupuesto = cache((id: number) =>
       filamentName: string | null;
       costo: CostoPieza;
     }[];
-    filamentos: { id: number; code: string; name: string }[];
+    filamentos: { id: number; code: string; name: string; pricePerKg: number }[];
     settings: { targetMargin: number };
+    marketCommission: number;
   } | null>(`presupuesto/${id}`),
 );
